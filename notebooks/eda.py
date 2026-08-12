@@ -9,7 +9,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 # Load the local raw dataset from the project data folder.
-from src.data_loader import load_raw_data
+try:
+    from src.data_loader import load_raw_data
+except ModuleNotFoundError:
+    from fraud_detection_mlops_project.src.data_loader import load_raw_data
 
 # Optional plotting support for EDA visuals.
 try:
@@ -121,20 +124,19 @@ def temporal_summary(df: pd.DataFrame) -> None:
         df["is_fraud_clean"] = pd.NA
 
     print("\nTemporal fraud analysis")
-    # Show the average fraud rate by hour, weekday, and month.
+    # Show the total number of fraud cases by hour, weekday, and month.
     print("Fraud by hour")
     print(
         df.groupby("hour")["is_fraud_clean"]
-        .mean()
+        .sum()
         .sort_values(ascending=False)
-        .round(4)
         .to_string()
     )
 
     print("\nFraud by weekday")
     print(
         df.groupby("weekday")["is_fraud_clean"]
-        .mean()
+        .sum()
         .reindex(
             [
                 "Monday",
@@ -146,12 +148,11 @@ def temporal_summary(df: pd.DataFrame) -> None:
                 "Sunday",
             ]
         )
-        .round(4)
         .to_string()
     )
 
     print("\nFraud by month")
-    print(df.groupby("month")["is_fraud_clean"].mean().round(4).to_string())
+    print(df.groupby("month")["is_fraud_clean"].sum().to_string())
 
     print("\nTransaction volume over time (daily)")
     daily_volume = df.groupby(df[time_col].dt.date).size()
@@ -208,34 +209,58 @@ def create_visuals(df: pd.DataFrame) -> None:
 
     plt.style.use("seaborn-v0_8-whitegrid")
 
-    # Plot fraud rate by transaction category.
+    # Plot fraud rate by transaction category and annotate the total fraud cases.
     category_rate = (
         df.groupby("category")["is_fraud_clean"]
         .mean()
         .sort_values(ascending=False)
         .head(10)
     )
+    category_total = (
+        df.groupby("category")["is_fraud_clean"].sum().reindex(category_rate.index)
+    )
     fig, ax = plt.subplots(figsize=(10, 5))
-    category_rate.plot(kind="bar", ax=ax, color="tomato")
-    ax.set_title("Top 10 categories by fraud rate")
+    bars = category_rate.plot(kind="bar", ax=ax, color="tomato")
+    ax.set_title("Top 10 categories by fraud rate (with total fraud cases)")
     ax.set_ylabel("Fraud rate")
     ax.set_xlabel("Category")
+    for bar, total in zip(bars.patches, category_total.values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{int(total)}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="black",
+        )
     fig.tight_layout()
     fig.savefig(plots_dir / "fraud_rate_by_category.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    # Plot fraud rate by state.
+    # Plot fraud rate by state and annotate the total fraud cases.
     state_rate = (
         df.groupby("state")["is_fraud_clean"]
         .mean()
         .sort_values(ascending=False)
         .head(10)
     )
+    state_total = df.groupby("state")["is_fraud_clean"].sum().reindex(state_rate.index)
     fig, ax = plt.subplots(figsize=(10, 5))
-    state_rate.plot(kind="bar", ax=ax, color="steelblue")
-    ax.set_title("Top 10 states by fraud rate")
+    bars = state_rate.plot(kind="bar", ax=ax, color="steelblue")
+    ax.set_title("Top 10 states by fraud rate (with total fraud cases)")
     ax.set_ylabel("Fraud rate")
     ax.set_xlabel("State")
+    for bar, total in zip(bars.patches, state_total.values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{int(total)}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="black",
+        )
     fig.tight_layout()
     fig.savefig(plots_dir / "fraud_rate_by_state.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -269,14 +294,25 @@ def create_visuals(df: pd.DataFrame) -> None:
     )
     plt.close(fig)
 
-    # Visualize fraud rate by hour of day.
+    # Visualize fraud rate by hour of day and annotate the total fraud cases.
     if "hour" in df.columns:
         hourly_rate = df.groupby("hour")["is_fraud_clean"].mean()
+        hourly_counts = df.groupby("hour")["is_fraud_clean"].sum()
         fig, ax = plt.subplots(figsize=(10, 5))
         hourly_rate.plot(kind="line", marker="o", ax=ax, color="purple")
-        ax.set_title("Fraud rate by hour of day")
+        ax.set_title("Fraud rate by hour of day (with total fraud cases)")
         ax.set_ylabel("Fraud rate")
         ax.set_xlabel("Hour")
+        for x, y in zip(hourly_rate.index, hourly_rate.values):
+            ax.text(
+                x,
+                y,
+                f"{int(hourly_counts.loc[x])}",
+                ha="left",
+                va="bottom",
+                fontsize=8,
+                color="black",
+            )
         fig.tight_layout()
         fig.savefig(plots_dir / "fraud_rate_by_hour.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
