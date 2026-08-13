@@ -21,6 +21,11 @@ except ImportError:  # pragma: no cover
     plt = None
 
 
+def clean_is_fraud(series: pd.Series) -> pd.Series:
+    """Normalize the target column to a numeric 0/1 series."""
+    return pd.to_numeric(series, errors="coerce").fillna(0).clip(0, 1)
+
+
 def basic_eda(df: pd.DataFrame) -> None:
     # Main entry point for the exploratory analysis.
     print("=" * 80)
@@ -82,13 +87,16 @@ def basic_eda(df: pd.DataFrame) -> None:
     print("\n9) Correlation analysis")
     correlation_summary(df)
 
-    # Highlight class imbalance, which is critical for model selection and evaluation.
-    print("\n10) Target distribution")
-    target_summary = target_distribution_summary(df)
-    print(target_summary.to_string())
+    # Analyze age distribution for fraud cases.
+    print("\n10) Fraud analysis by customer age")
+    age_fraud_summary(df)
+
+    # Analyze city-level fraud concentration and risk.
+    print("\n11) Fraud analysis by city")
+    city_fraud_summary(df)
 
     # Generate plots that highlight the most meaningful patterns.
-    print("\n11) Visual summaries")
+    print("\n12) Visual summaries")
     create_visuals(df)
 
 
@@ -171,15 +179,77 @@ def correlation_summary(df: pd.DataFrame) -> None:
     print(corr.round(3).to_string())
 
 
-def target_distribution_summary(df: pd.DataFrame) -> pd.DataFrame:
-    # Show the class balance for the target label to inform model choice.
-    target_counts = df["is_fraud"].value_counts()
-    target_pct = df["is_fraud"].value_counts(normalize=True) * 100
+def age_fraud_summary(df: pd.DataFrame) -> None:
+    df = df.copy()
+    if "dob" not in df.columns or "trans_date_trans_time" not in df.columns:
+        print("Missing dob or trans_date_trans_time; skipping age analysis.")
+        return
 
-    target_summary = pd.DataFrame(
-        {"count": target_counts, "percentage": target_pct.round(2)}
+    df["is_fraud_clean"] = clean_is_fraud(df["is_fraud"])
+    df["dob"] = pd.to_datetime(df["dob"], dayfirst=True, errors="coerce")
+    df["trans_date_trans_time"] = pd.to_datetime(
+        df["trans_date_trans_time"], dayfirst=True, errors="coerce"
     )
-    return target_summary
+    df["customer_age"] = (df["trans_date_trans_time"] - df["dob"]).dt.days / 365.25
+    df["customer_age"] = df["customer_age"].where(df["customer_age"].between(0, 110))
+
+    fraud_age = df.loc[df["is_fraud_clean"] == 1, "customer_age"].dropna()
+    nonfraud_age = df.loc[df["is_fraud_clean"] == 0, "customer_age"].dropna()
+
+    if fraud_age.empty:
+        print("No valid fraud age records found.")
+        return
+
+    print("Fraud customer age summary")
+    print(f"Fraud records with valid age: {len(fraud_age)}")
+    print(f"Mean age (fraud): {fraud_age.mean():.2f}")
+    print(f"Median age (fraud): {fraud_age.median():.2f}")
+    print(f"Mean age (non-fraud): {nonfraud_age.mean():.2f}")
+    print(f"Median age (non-fraud): {nonfraud_age.median():.2f}")
+
+    bins = [0, 25, 35, 45, 55, 65, 110]
+    labels = ["0-24", "25-34", "35-44", "45-54", "55-64", "65+"]
+    df["age_band"] = pd.cut(df["customer_age"], bins=bins, labels=labels, right=False)
+
+    age_band_counts = (
+        df.loc[df["is_fraud_clean"] == 1, "age_band"]
+        .value_counts(dropna=False)
+        .reindex(labels)
+        .fillna(0)
+    )
+    print("\nFraud counts by age band")
+    print(age_band_counts.astype(int).to_string())
+
+
+def city_fraud_summary(df: pd.DataFrame) -> None:
+    df = df.copy()
+    if "city" not in df.columns:
+        print("Column city not found; skipping city analysis.")
+        return
+
+    df["is_fraud_clean"] = clean_is_fraud(df["is_fraud"])
+    city_summary = (
+        df.groupby("city", dropna=False)
+        .agg(
+            total_transactions=("is_fraud_clean", "size"),
+            fraud_count=("is_fraud_clean", "sum"),
+        )
+        .reset_index()
+    )
+    city_summary["fraud_rate_pct"] = (
+        city_summary["fraud_count"] / city_summary["total_transactions"] * 100
+    )
+
+    top_fraud_count = city_summary.sort_values("fraud_count", ascending=False).head(10)
+    print("Top 10 cities by fraud count")
+    print(top_fraud_count.to_string(index=False))
+
+    stable_cities = city_summary[city_summary["total_transactions"] >= 20]
+    top_fraud_rate = stable_cities.sort_values("fraud_rate_pct", ascending=False).head(
+        10
+    )
+    print("\nTop 10 cities by fraud rate (min 20 transactions)")
+    print(top_fraud_rate.to_string(index=False))
 
 
 def create_visuals(df: pd.DataFrame) -> None:
@@ -199,9 +269,7 @@ def create_visuals(df: pd.DataFrame) -> None:
             df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
         df["hour"] = df[time_col].dt.hour
 
-    df["is_fraud_clean"] = (
-        df["is_fraud"].astype(str).str.extract(r"([01])", expand=False).astype(float)
-    )
+    df["is_fraud_clean"] = clean_is_fraud(df["is_fraud"])
 
     # Save plots into a dedicated folder for easy inspection.
     plots_dir = PROJECT_ROOT / "notebooks" / "eda_plots"
@@ -266,16 +334,90 @@ def create_visuals(df: pd.DataFrame) -> None:
     plt.close(fig)
 
     # Plot the class distribution to emphasize imbalance.
-    target_counts = df["is_fraud"].astype(str).value_counts()
+    target_counts = df["is_fraud_clean"].value_counts().sort_index()
     fig, ax = plt.subplots(figsize=(8, 5))
     target_counts.plot(kind="bar", ax=ax, color=["steelblue", "tomato"])
-    ax.set_title("Target class distribution")
+    ax.set_title("Fraud vs non-fraud transaction counts")
     ax.set_xlabel("Class")
     ax.set_ylabel("Count")
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+    ax.set_xticklabels(["Non-fraud (0)", "Fraud (1)"], rotation=0)
     fig.tight_layout()
-    fig.savefig(plots_dir / "target_distribution.png", dpi=300, bbox_inches="tight")
+    fig.savefig(
+        plots_dir / "fraud_transaction_counts.png", dpi=300, bbox_inches="tight"
+    )
     plt.close(fig)
+
+    # Plot customer age distribution for fraud vs non-fraud.
+    if "dob" in df.columns and "trans_date_trans_time" in df.columns:
+        dob = pd.to_datetime(df["dob"], dayfirst=True, errors="coerce")
+        trans_time = pd.to_datetime(
+            df["trans_date_trans_time"], dayfirst=True, errors="coerce"
+        )
+        df["customer_age"] = (trans_time - dob).dt.days / 365.25
+        df["customer_age"] = df["customer_age"].where(
+            df["customer_age"].between(0, 110)
+        )
+
+        fraud_age = df.loc[df["is_fraud_clean"] == 1, "customer_age"].dropna()
+        nonfraud_age = df.loc[df["is_fraud_clean"] == 0, "customer_age"].dropna()
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+        ax.hist(nonfraud_age, bins=30, alpha=0.6, label="Non-fraud", color="skyblue")
+        ax.hist(fraud_age, bins=30, alpha=0.7, label="Fraud", color="tomato")
+        ax.set_title("Customer age distribution: fraud vs non-fraud")
+        ax.set_xlabel("Customer age")
+        ax.set_ylabel("Count")
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(
+            plots_dir / "fraud_age_distribution.png", dpi=300, bbox_inches="tight"
+        )
+        plt.close(fig)
+
+    # Plot top cities by fraud count.
+    if "city" in df.columns:
+        city_fraud = (
+            df.groupby("city")["is_fraud_clean"]
+            .sum()
+            .sort_values(ascending=False)
+            .head(35)
+        )
+        fig, ax = plt.subplots(figsize=(11, 6))
+        city_fraud.plot(kind="bar", ax=ax, color="indianred")
+        ax.set_title("Top 35 cities by number of fraud transactions")
+        ax.set_xlabel("City")
+        ax.set_ylabel("Fraud transaction count")
+        ax.tick_params(axis="x", rotation=45)
+        fig.tight_layout()
+        fig.savefig(plots_dir / "fraud_by_city_count.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+        # Plot top cities by fraud rate with a minimum transaction threshold
+        # to avoid noisy rates from very small sample sizes.
+        city_summary = (
+            df.groupby("city", dropna=False)["is_fraud_clean"]
+            .agg(total_transactions="size", fraud_count="sum")
+            .reset_index()
+        )
+        city_summary = city_summary[city_summary["total_transactions"] >= 20]
+        city_summary["fraud_rate_pct"] = (
+            city_summary["fraud_count"] / city_summary["total_transactions"] * 100
+        )
+        top_city_rate = city_summary.sort_values(
+            "fraud_rate_pct", ascending=False
+        ).head(35)
+
+        fig, ax = plt.subplots(figsize=(11, 6))
+        top_city_rate.set_index("city")["fraud_rate_pct"].plot(
+            kind="bar", ax=ax, color="darkorange"
+        )
+        ax.set_title("Top 35 cities by fraud rate (min 20 transactions)")
+        ax.set_xlabel("City")
+        ax.set_ylabel("Fraud rate (%)")
+        ax.tick_params(axis="x", rotation=45)
+        fig.tight_layout()
+        fig.savefig(plots_dir / "fraud_by_city_rate.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
 
     # Compare the amount distribution for legitimate vs fraudulent transactions.
     legit_amounts = df.loc[df["is_fraud_clean"] == 0, "amt"].dropna()
