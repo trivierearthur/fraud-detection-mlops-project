@@ -382,12 +382,12 @@ def create_visuals(df: pd.DataFrame) -> None:
             .sort_values(ascending=False)
             .head(35)
         )
-        fig, ax = plt.subplots(figsize=(11, 6))
-        city_fraud.plot(kind="bar", ax=ax, color="indianred")
+        city_fraud = city_fraud.sort_values(ascending=True)
+        fig, ax = plt.subplots(figsize=(12, 11))
+        city_fraud.plot(kind="barh", ax=ax, color="indianred")
         ax.set_title("Top 35 cities by number of fraud transactions")
-        ax.set_xlabel("City")
-        ax.set_ylabel("Fraud transaction count")
-        ax.tick_params(axis="x", rotation=45)
+        ax.set_xlabel("Fraud transaction count")
+        ax.set_ylabel("City")
         fig.tight_layout()
         fig.savefig(plots_dir / "fraud_by_city_count.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
@@ -399,6 +399,9 @@ def create_visuals(df: pd.DataFrame) -> None:
             .agg(total_transactions="size", fraud_count="sum")
             .reset_index()
         )
+        city_summary["nonfraud_count"] = (
+            city_summary["total_transactions"] - city_summary["fraud_count"]
+        )
         city_summary = city_summary[city_summary["total_transactions"] >= 20]
         city_summary["fraud_rate_pct"] = (
             city_summary["fraud_count"] / city_summary["total_transactions"] * 100
@@ -406,15 +409,38 @@ def create_visuals(df: pd.DataFrame) -> None:
         top_city_rate = city_summary.sort_values(
             "fraud_rate_pct", ascending=False
         ).head(35)
+        top_city_rate = top_city_rate.sort_values("fraud_rate_pct", ascending=True)
 
-        fig, ax = plt.subplots(figsize=(11, 6))
+        fig, ax = plt.subplots(figsize=(13, 12))
         top_city_rate.set_index("city")["fraud_rate_pct"].plot(
-            kind="bar", ax=ax, color="darkorange"
+            kind="barh", ax=ax, color="darkorange"
         )
         ax.set_title("Top 35 cities by fraud rate (min 20 transactions)")
-        ax.set_xlabel("City")
-        ax.set_ylabel("Fraud rate (%)")
-        ax.tick_params(axis="x", rotation=45)
+        ax.set_xlabel("Fraud rate (%)")
+        ax.set_ylabel("City")
+
+        # Add per-city volume context at the end of each bar.
+        rate_max = (
+            float(top_city_rate["fraud_rate_pct"].max())
+            if not top_city_rate.empty
+            else 0
+        )
+        ax.set_xlim(0, rate_max * 1.35 if rate_max > 0 else 1)
+        for bar, (_, row) in zip(ax.patches, top_city_rate.iterrows()):
+            label = (
+                f"T:{int(row['total_transactions'])} "
+                f"F:{int(row['fraud_count'])} "
+                f"NF:{int(row['nonfraud_count'])}"
+            )
+            ax.text(
+                bar.get_width() + rate_max * 0.01,
+                bar.get_y() + bar.get_height() / 2,
+                label,
+                ha="left",
+                va="center",
+                fontsize=7,
+            )
+
         fig.tight_layout()
         fig.savefig(plots_dir / "fraud_by_city_rate.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
