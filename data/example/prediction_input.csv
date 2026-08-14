@@ -1,0 +1,6 @@
+category,amt,city,state,lat,long,city_pop,job,merch_lat,merch_long,trans_hour,trans_dayofweek,trans_month,customer_age,merchant_distance_km
+grocery_net,24.85,Denver,CO,39.7392,-104.9903,715522,"Teacher",39.7514,-104.9731,14,2,8,38,2.11
+shopping_net,987.42,Anchorage,AK,61.2181,-149.9003,288970,"Administrator, education",61.7254,-149.3821,2,4,8,42,61.83
+electronics,1125.60,Little Rock,AR,34.7465,-92.2896,202591,"Engineer",35.2187,-91.7742,1,5,8,29,78.42
+gas_transport,312.40,Chicago,IL,41.8781,-87.6298,2746388,"Manager",41.8824,-87.6102,18,1,8,51,1.92
+shopping_net,642.75,Seattle,WA,47.6062,-122.3321,737015,"Accountant",48.1445,-122.1487,23,6,8,67,38.61
