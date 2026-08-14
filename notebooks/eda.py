@@ -462,6 +462,22 @@ def create_visuals(df: pd.DataFrame) -> None:
     )
     plt.close(fig)
 
+    # Plot fraud-only transaction amount distribution.
+    fraud_only_amounts = df.loc[df["is_fraud_clean"] == 1, "amt"].dropna()
+    if not fraud_only_amounts.empty:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.hist(fraud_only_amounts, bins=40, color="tomato", alpha=0.85)
+        ax.set_title("Fraud-only transaction amount distribution")
+        ax.set_xlabel("Fraud transaction amount")
+        ax.set_ylabel("Count")
+        fig.tight_layout()
+        fig.savefig(
+            plots_dir / "fraud_only_amount_distribution.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close(fig)
+
     # Visualize fraud rate by hour of day and annotate the total fraud cases.
     if "hour" in df.columns:
         hourly_rate = df.groupby("hour")["is_fraud_clean"].mean()
