@@ -99,7 +99,11 @@ def build_model_pipeline(
     estimator: Any,
     scale_numeric: bool = False,
 ) -> Pipeline:
-    preprocessor = build_preprocessor(x, scale_numeric=scale_numeric)
+    engineered_x, _ = engineer_transaction_features(x, verbose=False)
+    preprocessor = build_preprocessor(
+        engineered_x,
+        scale_numeric=scale_numeric,
+    )
     return Pipeline(
         steps=[
             ("feature_engineering", TransactionFeatureTransformer()),

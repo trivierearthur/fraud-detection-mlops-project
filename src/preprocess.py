@@ -280,7 +280,7 @@ def preprocess_dataframe(
 
     raw_df, y, summary = prepare_training_dataframe(df)
     transformer = TransactionFeatureTransformer(verbose=True)
-    x = transformer.fit_transform(raw_df)
+    x = cast(pd.DataFrame, transformer.fit_transform(raw_df))
 
     print("\nPreprocessing summary")
     print("---------------------")
