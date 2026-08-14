@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
@@ -29,19 +30,33 @@ CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
 
 try:
-    from src.preprocess import preprocess_dataframe
+    from src.preprocess import (
+        TransactionFeatureTransformer,
+        engineer_transaction_features,
+        prepare_training_dataframe,
+    )
     from src.data_loader import load_raw_data
 except ModuleNotFoundError:
     try:
         from fraud_detection_mlops_project.src.preprocess import (
-            preprocess_dataframe,
+            TransactionFeatureTransformer,
+            engineer_transaction_features,
+            prepare_training_dataframe,
         )
         from fraud_detection_mlops_project.src.data_loader import load_raw_data
     except ModuleNotFoundError:
         if str(CURRENT_DIR) not in sys.path:
             sys.path.append(str(CURRENT_DIR))
-        from preprocess import preprocess_dataframe
+        from preprocess import (
+            TransactionFeatureTransformer,
+            engineer_transaction_features,
+            prepare_training_dataframe,
+        )
         from data_loader import load_raw_data
+
+
+MODELS_DIR = PROJECT_ROOT / "models"
+MODEL_FILE = MODELS_DIR / "fraud_model.joblib"
 
 
 def build_preprocessor(
@@ -87,6 +102,7 @@ def build_model_pipeline(
     preprocessor = build_preprocessor(x, scale_numeric=scale_numeric)
     return Pipeline(
         steps=[
+            ("feature_engineering", TransactionFeatureTransformer()),
             ("preprocessor", preprocessor),
             ("model", estimator),
         ]
@@ -158,14 +174,21 @@ def evaluate_model(
     }
 
 
+def save_model(pipeline: Pipeline) -> None:
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    joblib.dump(pipeline, MODEL_FILE)
+    print(f"Saved full prediction pipeline to: {MODEL_FILE}")
+
+
 def check_for_leakage(
     x_train: pd.DataFrame,
     x_test: pd.DataFrame,
 ) -> None:
+    engineered_train, _ = engineer_transaction_features(x_train, verbose=False)
     suspicious_terms = ("fraud", "target", "label")
     suspicious_columns = [
         column
-        for column in x_train.columns
+        for column in engineered_train.columns
         if any(term in column.lower() for term in suspicious_terms)
     ]
 
@@ -255,7 +278,17 @@ def validate_selected_model(
 
 def train_and_select_model() -> Pipeline:
     df = load_raw_data()
-    x, y = preprocess_dataframe(df)
+    x, y, summary = prepare_training_dataframe(df)
+
+    print("\nTraining data summary")
+    print("---------------------")
+    print(f"Rows before deduplication  : {summary['before_rows']:,}")
+    print(f"Rows after deduplication   : {summary['after_rows']:,}")
+    print(f"Duplicates removed         : {summary['removed_duplicates']:,}")
+    print(f"Invalid-target rows dropped: {summary['invalid_target_rows']:,}")
+    print(f"Fraudulent transactions    : {y.sum():,}")
+    print(f"Non-fraudulent transactions: {(y == 0).sum():,}")
+    print(f"Fraud rate                 : {y.mean():.4%}")
 
     x_train, x_test, y_train, y_test = train_test_split(
         x,
@@ -318,6 +351,8 @@ def train_and_select_model() -> Pipeline:
         y_train=y_train,
         y_test=y_test,
     )
+
+    save_model(best_result["pipeline"])
 
     return best_result["pipeline"]
 
