@@ -178,9 +178,7 @@ def check_for_leakage(
     else:
         print("No target-like feature names detected in the model inputs.")
 
-    train_hashes = set(
-        pd.util.hash_pandas_object(x_train, index=False).tolist()
-    )
+    train_hashes = set(pd.util.hash_pandas_object(x_train, index=False).tolist())
     test_hashes = set(pd.util.hash_pandas_object(x_test, index=False).tolist())
     overlapping_rows = len(train_hashes & test_hashes)
 
@@ -245,10 +243,7 @@ def validate_selected_model(
     print(f"  Shuffled ROC-AUC                 : {shuffled_roc_auc:.4f}")
 
     if shuffled_roc_auc <= 0.55 and pr_auc_delta <= 0.03:
-        print(
-            "Sanity check passed: performance collapses after "
-            "target shuffling."
-        )
+        print("Sanity check passed: performance collapses after " "target shuffling.")
     elif shuffled_roc_auc <= 0.55:
         print(
             "Sanity check is borderline: ROC-AUC collapsed to chance, "
