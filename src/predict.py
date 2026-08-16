@@ -21,6 +21,7 @@ except ModuleNotFoundError:
 
 
 def load_model():
+    """Load the saved end-to-end fraud pipeline from disk."""
     if not MODEL_FILE.exists():
         raise FileNotFoundError(
             f"Saved model not found at {MODEL_FILE}. Run train_model.py first."
@@ -32,6 +33,7 @@ def load_prediction_input(
     input_csv: str | None,
     sample_row: int,
 ) -> pd.DataFrame:
+    """Load raw transactions to score from CSV or from one sample row."""
     if input_csv is not None:
         input_path = Path(input_csv)
         if not input_path.exists():
@@ -39,6 +41,7 @@ def load_prediction_input(
             raise FileNotFoundError(message)
         return pd.read_csv(input_path)
 
+    # Fallback path for quick demos: score one raw row as if it just arrived.
     raw_df = load_raw_data()
     if sample_row < 0 or sample_row >= len(raw_df):
         raise IndexError(
@@ -54,6 +57,7 @@ def load_prediction_input(
 
 
 def predict_transactions(model, transactions: pd.DataFrame) -> pd.DataFrame:
+    """Return input rows enriched with fraud probability and class label."""
     fraud_probability = model.predict_proba(transactions)[:, 1]
     fraud_prediction = model.predict(transactions)
 
@@ -64,6 +68,7 @@ def predict_transactions(model, transactions: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_argument_parser() -> ArgumentParser:
+    """Define command-line options for prediction input and output."""
     parser = ArgumentParser(
         description="Load the saved fraud pipeline and score new transactions."
     )
@@ -92,12 +97,15 @@ def build_argument_parser() -> ArgumentParser:
 
 
 def main() -> None:
+    """CLI entrypoint for fraud scoring."""
     args = build_argument_parser().parse_args()
 
+    # Load trained pipeline and score raw incoming transactions.
     model = load_model()
     transactions = load_prediction_input(args.input_csv, args.sample_row)
     predictions = predict_transactions(model, transactions)
 
+    # Keep terminal output focused on key identifiers and model outputs.
     display_columns = [
         column
         for column in ["trans_num", "category", "amt", "is_fraud"]
@@ -109,6 +117,7 @@ def main() -> None:
     print("------------------")
     print(predictions[display_columns].to_string(index=False))
 
+    # Optional artifact for downstream analysis/reporting.
     if args.output_csv is not None:
         output_path = Path(args.output_csv)
         output_path.parent.mkdir(parents=True, exist_ok=True)
