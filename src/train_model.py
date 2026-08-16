@@ -63,6 +63,7 @@ def build_preprocessor(
     x: pd.DataFrame,
     scale_numeric: bool = False,
 ) -> ColumnTransformer:
+    """Build column-wise preprocessing for numeric and categorical features."""
     numeric_features = x.select_dtypes(include=["number"]).columns.tolist()
     categorical_features = x.select_dtypes(exclude=["number"]).columns.tolist()
 
@@ -99,6 +100,9 @@ def build_model_pipeline(
     estimator: Any,
     scale_numeric: bool = False,
 ) -> Pipeline:
+    """Build end-to-end pipeline from raw transactions to predictions."""
+    # Fit the column preprocessor against engineered columns so inference
+    # and training share the exact same schema.
     engineered_x, _ = engineer_transaction_features(x, verbose=False)
     preprocessor = build_preprocessor(
         engineered_x,
@@ -114,6 +118,7 @@ def build_model_pipeline(
 
 
 def get_model_candidates() -> dict[str, tuple[Any, bool]]:
+    """Return candidate estimators and whether numeric scaling is required."""
     return {
         "logistic_regression": (
             LogisticRegression(
@@ -155,6 +160,7 @@ def evaluate_model(
     y_train: pd.Series,
     y_test: pd.Series,
 ) -> dict[str, Any]:
+    """Train one candidate, print holdout metrics, and return summary stats."""
     pipeline.fit(x_train, y_train)
 
     y_pred = pipeline.predict(x_test)
@@ -179,6 +185,7 @@ def evaluate_model(
 
 
 def save_model(pipeline: Pipeline) -> None:
+    """Persist the full fitted pipeline for production prediction."""
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(pipeline, MODEL_FILE)
     print(f"Saved full prediction pipeline to: {MODEL_FILE}")
@@ -188,6 +195,7 @@ def check_for_leakage(
     x_train: pd.DataFrame,
     x_test: pd.DataFrame,
 ) -> None:
+    """Run lightweight checks for obvious leakage and split contamination."""
     engineered_train, _ = engineer_transaction_features(x_train, verbose=False)
     suspicious_terms = ("fraud", "target", "label")
     suspicious_columns = [
@@ -223,6 +231,7 @@ def validate_selected_model(
     y_train: pd.Series,
     y_test: pd.Series,
 ) -> None:
+    """Validate selected model with CV and a shuffled-target sanity test."""
     pipeline = best_result["pipeline"]
     baseline_pr_auc = y_test.mean()
 
@@ -280,7 +289,78 @@ def validate_selected_model(
         print("Warning: shuffled-target performance is unexpectedly strong.")
 
 
+def print_model_comparison_table(results: list[dict[str, Any]]) -> None:
+    """Print a ranked comparison table for all evaluated candidates."""
+    comparison_df = pd.DataFrame(
+        {
+            "model_name": [result["model_name"] for result in results],
+            "pr_auc": [result["pr_auc"] for result in results],
+            "roc_auc": [result["roc_auc"] for result in results],
+        }
+    )
+    comparison_df["rank"] = (
+        comparison_df[["pr_auc", "roc_auc"]]
+        .apply(tuple, axis=1)
+        .rank(method="dense", ascending=False)
+        .astype(int)
+    )
+    comparison_df = comparison_df.sort_values(
+        by=["pr_auc", "roc_auc"],
+        ascending=False,
+    )
+    comparison_df["pr_auc"] = comparison_df["pr_auc"].map(lambda x: f"{x:.4f}")
+    comparison_df["roc_auc"] = comparison_df["roc_auc"].map(lambda x: f"{x:.4f}")
+
+    print("\nModel comparison table")
+    print("----------------------")
+    print(comparison_df.to_string(index=False))
+
+
+def report_top_feature_importance(
+    best_result: dict[str, Any],
+    top_n: int = 15,
+) -> None:
+    """Print top feature importances when Random Forest is selected."""
+    if best_result["model_name"] != "random_forest":
+        print(
+            "\nTop feature importance report is skipped because the "
+            "selected model is not Random Forest."
+        )
+        return
+
+    pipeline: Pipeline = best_result["pipeline"]
+    preprocessor: ColumnTransformer = pipeline.named_steps["preprocessor"]
+    model = pipeline.named_steps["model"]
+
+    if not hasattr(model, "feature_importances_"):
+        print("\nSelected model does not expose feature_importances_.")
+        return
+
+    feature_names = preprocessor.get_feature_names_out()
+    importances = model.feature_importances_
+    feature_df = pd.DataFrame(
+        {
+            "feature": feature_names,
+            "importance": importances,
+        }
+    ).sort_values(by="importance", ascending=False)
+
+    print("\nTop feature importance (Random Forest)")
+    print("--------------------------------------")
+    print(feature_df.head(top_n).to_string(index=False))
+
+    hour_related = feature_df[
+        feature_df["feature"].str.contains("trans_hour", regex=False)
+    ]
+    if not hour_related.empty:
+        print("\nHour-related feature importance")
+        print("------------------------------")
+        print(hour_related.to_string(index=False))
+
+
 def train_and_select_model() -> Pipeline:
+    """Main entrypoint: prepare data, compare models, validate, save."""
+    # 1) Load and clean rows with invalid labels or duplicate transactions.
     df = load_raw_data()
     x, y, summary = prepare_training_dataframe(df)
 
@@ -302,11 +382,13 @@ def train_and_select_model() -> Pipeline:
         stratify=y,
     )
 
+    # 2) Sanity checks before training.
     check_for_leakage(x_train, x_test)
 
     results: list[dict[str, Any]] = []
 
     print("Model evaluation on holdout set")
+    # 3) Train and evaluate each candidate on the same split.
     for (
         model_name,
         (estimator, scale_numeric),
@@ -342,12 +424,15 @@ def train_and_select_model() -> Pipeline:
             f"ROC-AUC={result['roc_auc']:.4f}"
         )
 
+    print_model_comparison_table(results)
+
     print(
         "\nSelected model: "
         f"{best_result['model_name']} "
         f"(best PR-AUC, tie-broken by ROC-AUC)"
     )
 
+    # 4) Deeper checks on the selected model only.
     validate_selected_model(
         best_result=best_result,
         x_train=x_train,
@@ -356,6 +441,9 @@ def train_and_select_model() -> Pipeline:
         y_test=y_test,
     )
 
+    report_top_feature_importance(best_result, top_n=15)
+
+    # 5) Save the full pipeline (feature engineering + preprocessing + model).
     save_model(best_result["pipeline"])
 
     return best_result["pipeline"]
