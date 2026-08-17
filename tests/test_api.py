@@ -10,6 +10,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
 from api import app
+from auth import API_KEY
 
 
 @pytest.fixture
@@ -39,6 +40,11 @@ VALID_TRANSACTION = {
 }
 
 
+def auth_headers():
+    """Return authentication headers using the configured API key."""
+    return {"Authorization": f"Bearer {API_KEY}"}
+
+
 def test_health(client):
     """Health endpoint should return status ok."""
     response = client.get("/health")
@@ -49,9 +55,15 @@ def test_health(client):
 
 def test_predict_without_api_key(client):
     """Prediction should require authentication."""
-    response = client.post("/predict", json=VALID_TRANSACTION)
+    response = client.post(
+        "/predict",
+        json=VALID_TRANSACTION,
+    )
 
     assert response.status_code == 401
+
+    data = response.get_json()
+    assert data["error"] == "Authentication required"
 
 
 def test_predict_with_invalid_api_key(client):
@@ -64,13 +76,16 @@ def test_predict_with_invalid_api_key(client):
 
     assert response.status_code == 401
 
+    data = response.get_json()
+    assert data["error"] == "Invalid API key"
+
 
 def test_predict_with_valid_api_key(client):
-    """Prediction should work with the correct API key."""
+    """Prediction should work with the configured API key."""
     response = client.post(
         "/predict",
         json=VALID_TRANSACTION,
-        headers={"Authorization": "Bearer 12345"},
+        headers=auth_headers(),
     )
 
     assert response.status_code == 200
@@ -88,10 +103,13 @@ def test_predict_without_json(client):
     """Prediction should reject requests without JSON."""
     response = client.post(
         "/predict",
-        headers={"Authorization": "Bearer 12345"},
+        headers=auth_headers(),
     )
 
     assert response.status_code == 400
+
+    data = response.get_json()
+    assert data["error"] == "Request must contain JSON data"
 
 
 def test_predict_missing_fields(client):
@@ -103,14 +121,16 @@ def test_predict_missing_fields(client):
     response = client.post(
         "/predict",
         json=incomplete_transaction,
-        headers={"Authorization": "Bearer 12345"},
+        headers=auth_headers(),
     )
 
     assert response.status_code == 400
 
     data = response.get_json()
 
+    assert data["error"] == "Missing required fields"
     assert "fields" in data
+    assert len(data["fields"]) > 0
 
 
 def test_predict_invalid_data_type(client):
@@ -121,10 +141,14 @@ def test_predict_invalid_data_type(client):
     response = client.post(
         "/predict",
         json=invalid_transaction,
-        headers={"Authorization": "Bearer 12345"},
+        headers=auth_headers(),
     )
 
     assert response.status_code == 400
+
+    data = response.get_json()
+
+    assert data["error"] == "Invalid type for 'amt'"
 
 
 def test_predict_invalid_datetime(client):
@@ -135,7 +159,11 @@ def test_predict_invalid_datetime(client):
     response = client.post(
         "/predict",
         json=invalid_transaction,
-        headers={"Authorization": "Bearer 12345"},
+        headers=auth_headers(),
     )
 
     assert response.status_code == 400
+
+    data = response.get_json()
+
+    assert "Invalid trans_date_trans_time format" in data["error"]
