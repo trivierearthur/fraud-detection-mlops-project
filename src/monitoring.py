@@ -6,19 +6,16 @@ from scipy.stats import chi2_contingency, ks_2samp
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
 
-# Reference data used to train the model
+# Reference dataset used to train the model
 REFERENCE_FILE = PROJECT_ROOT / "data" / "processed" / "fraud_data_cleaned.csv"
 
-# Current/incoming data to monitor
-CURRENT_FILE = (
-    PROJECT_ROOT / "data" / "raw" / "synthetic_mixed_transactions_v3_nolabel.csv"
-)
+# Directory containing simulated monthly data
+MONTHLY_DIR = PROJECT_ROOT / "data" / "monthly"
 
-# Statistical significance threshold
 SIGNIFICANCE_LEVEL = 0.05
 
 
-# Features selected for monitoring
+# Numerical features monitored for drift
 NUMERICAL_FEATURES = [
     "amt",
     "trans_hour",
@@ -28,43 +25,45 @@ NUMERICAL_FEATURES = [
     "city_pop",
 ]
 
+
+# Categorical features monitored for drift
 CATEGORICAL_FEATURES = [
     "category",
     "state",
 ]
 
 
-def load_data():
-    """Load reference and current datasets."""
+def load_reference_data():
+    """Load the reference dataset."""
 
     if not REFERENCE_FILE.exists():
         raise FileNotFoundError(f"Reference data not found: {REFERENCE_FILE}")
 
-    if not CURRENT_FILE.exists():
-        raise FileNotFoundError(f"Current data not found: {CURRENT_FILE}")
-
-    reference = pd.read_csv(REFERENCE_FILE)
-    current = pd.read_csv(CURRENT_FILE)
-
-    return reference, current
+    return pd.read_csv(REFERENCE_FILE)
 
 
-def check_numerical_drift(
-    reference: pd.DataFrame,
-    current: pd.DataFrame,
-):
-    """Check numerical features using the Kolmogorov-Smirnov test."""
+def load_monthly_data(month: int):
+    """Load one simulated month's data."""
+
+    month_file = MONTHLY_DIR / f"month_{month:02d}.csv"
+
+    if not month_file.exists():
+        raise FileNotFoundError(f"Monthly data not found: {month_file}")
+
+    return pd.read_csv(month_file)
+
+
+def check_numerical_drift(reference, current):
+    """Use the Kolmogorov-Smirnov test for numerical features."""
 
     results = []
 
     for feature in NUMERICAL_FEATURES:
 
         if feature not in reference.columns:
-            print(f"Warning: {feature} is missing from reference data. " "Skipping.")
             continue
 
         if feature not in current.columns:
-            print(f"Warning: {feature} is missing from current data. " "Skipping.")
             continue
 
         reference_values = pd.to_numeric(
@@ -78,7 +77,6 @@ def check_numerical_drift(
         ).dropna()
 
         if len(reference_values) == 0 or len(current_values) == 0:
-            print(f"Warning: {feature} contains no usable values. " "Skipping.")
             continue
 
         statistic, p_value = ks_2samp(
@@ -99,22 +97,17 @@ def check_numerical_drift(
     return results
 
 
-def check_categorical_drift(
-    reference: pd.DataFrame,
-    current: pd.DataFrame,
-):
-    """Check categorical features using a chi-square test."""
+def check_categorical_drift(reference, current):
+    """Use a chi-square test for categorical features."""
 
     results = []
 
     for feature in CATEGORICAL_FEATURES:
 
         if feature not in reference.columns:
-            print(f"Warning: {feature} is missing from reference data. " "Skipping.")
             continue
 
         if feature not in current.columns:
-            print(f"Warning: {feature} is missing from current data. " "Skipping.")
             continue
 
         reference_counts = reference[feature].value_counts()
@@ -154,11 +147,27 @@ def check_categorical_drift(
     return results
 
 
-def print_results(results):
-    """Print drift results in a readable format."""
+def monitor_month(reference, current, month):
+    """Run all drift tests for one month."""
 
-    print("\nDrift results")
-    print("-------------")
+    numerical_results = check_numerical_drift(
+        reference,
+        current,
+    )
+
+    categorical_results = check_categorical_drift(
+        reference,
+        current,
+    )
+
+    results = numerical_results + categorical_results
+
+    drifted_features = [result["feature"] for result in results if result["drift"]]
+
+    drift_detected = len(drifted_features) > 0
+
+    print(f"\nMonth {month:02d}")
+    print("-------")
 
     for result in results:
 
@@ -171,45 +180,79 @@ def print_results(results):
             f"{status}"
         )
 
+    if drift_detected:
+        print(f"RESULT: DRIFT DETECTED " f"({len(drifted_features)} feature(s))")
+
+        print("Action: model retraining should be triggered.")
+
+    else:
+        print("RESULT: NO SIGNIFICANT DRIFT")
+
+        print("Action: keep the current model.")
+
+    return {
+        "month": month,
+        "drift_detected": drift_detected,
+        "drifted_features": drifted_features,
+    }
+
 
 def main():
 
     print("Data Drift Monitoring")
     print("=====================")
 
-    reference, current = load_data()
+    reference = load_reference_data()
 
-    print(f"Reference rows: {len(reference):,}")
-    print(f"Current rows:   {len(current):,}")
+    print(f"Reference dataset: " f"{len(reference):,} rows")
 
-    results = []
+    monthly_results = []
 
-    numerical_results = check_numerical_drift(
-        reference,
-        current,
-    )
+    for month in range(1, 13):
 
-    categorical_results = check_categorical_drift(
-        reference,
-        current,
-    )
+        current = load_monthly_data(month)
 
-    results.extend(numerical_results)
-    results.extend(categorical_results)
+        result = monitor_month(
+            reference=reference,
+            current=current,
+            month=month,
+        )
 
-    print_results(results)
+        monthly_results.append(result)
 
-    drift_detected = any(result["drift"] for result in results)
+    print("\n")
+    print("Annual Drift Summary")
+    print("====================")
 
-    print("\nOverall result")
-    print("--------------")
+    for result in monthly_results:
 
-    if drift_detected:
-        print("DRIFT DETECTED")
-        print("Model retraining should be considered.")
+        if result["drift_detected"]:
+
+            features = ", ".join(result["drifted_features"])
+
+            print(f"Month {result['month']:02d}: " f"DRIFT → {features}")
+
+        else:
+
+            print(f"Month {result['month']:02d}: " f"NO DRIFT")
+
+    drift_months = [
+        result["month"] for result in monthly_results if result["drift_detected"]
+    ]
+
+    print()
+    print(f"Months with detected drift: " f"{len(drift_months)}/12")
+
+    if drift_months:
+
+        print(
+            "Retraining would be triggered for: "
+            + ", ".join(f"month {month:02d}" for month in drift_months)
+        )
+
     else:
-        print("NO SIGNIFICANT DRIFT DETECTED")
-        print("No retraining required.")
+
+        print("No retraining would be triggered.")
 
 
 if __name__ == "__main__":
