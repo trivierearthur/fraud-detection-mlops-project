@@ -65,11 +65,14 @@ model = load_current_model()
 
 @app.route("/health", methods=["GET"])
 def health():
+    """Check whether the API is running."""
     return jsonify({"status": "ok"})
 
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    """Predict the fraud probability for one transaction."""
+
     data = request.get_json()
 
     # Check that JSON was provided
@@ -116,7 +119,7 @@ def predict():
     try:
         datetime.strptime(
             data["trans_date_trans_time"],
-            "%Y-%m-%d %H:%M:%S",
+            "%d-%m-%Y %H:%M",
         )
     except ValueError:
         return (
@@ -124,7 +127,7 @@ def predict():
                 {
                     "error": (
                         "Invalid trans_date_trans_time format. "
-                        "Expected YYYY-MM-DD HH:MM:SS"
+                        "Expected DD-MM-YYYY HH:MM"
                     )
                 }
             ),
@@ -148,8 +151,11 @@ def predict():
             }
         )
 
-    except Exception as error:
+    except ValueError as error:
         return jsonify({"error": str(error)}), 400
+
+    except Exception:
+        return jsonify({"error": "Internal prediction error"}), 500
 
 
 if __name__ == "__main__":
