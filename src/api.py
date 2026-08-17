@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 import joblib
@@ -11,6 +12,25 @@ MODELS_DIR = PROJECT_ROOT / "models"
 CURRENT_MODEL_FILE = MODELS_DIR / "current_model.txt"
 
 app = Flask(__name__)
+
+
+# Expected input types for a raw transaction
+EXPECTED_TYPES = {
+    "trans_date_trans_time": str,
+    "merchant": str,
+    "category": str,
+    "amt": (int, float),
+    "city": str,
+    "state": str,
+    "lat": (int, float),
+    "long": (int, float),
+    "city_pop": (int, float),
+    "job": str,
+    "dob": str,
+    "trans_num": str,
+    "merch_lat": (int, float),
+    "merch_long": (int, float),
+}
 
 
 def load_current_model():
@@ -52,17 +72,73 @@ def health():
 def predict():
     data = request.get_json()
 
+    # Check that JSON was provided
     if data is None:
         return jsonify({"error": "Request must contain JSON data"}), 400
 
+    # Check that the JSON object is not empty
     if not data:
         return jsonify({"error": "Request body cannot be empty"}), 400
 
+    # Check for missing required fields
+    missing_fields = [field for field in EXPECTED_TYPES if field not in data]
+
+    if missing_fields:
+        return (
+            jsonify(
+                {
+                    "error": "Missing required fields",
+                    "fields": missing_fields,
+                }
+            ),
+            400,
+        )
+
+    # Check data types
+    for field, expected_type in EXPECTED_TYPES.items():
+        if not isinstance(data[field], expected_type):
+            expected = (
+                "number" if isinstance(expected_type, tuple) else expected_type.__name__
+            )
+
+            return (
+                jsonify(
+                    {
+                        "error": f"Invalid type for '{field}'",
+                        "expected": expected,
+                        "received": type(data[field]).__name__,
+                    }
+                ),
+                400,
+            )
+
+    # Validate transaction datetime format
     try:
+        datetime.strptime(
+            data["trans_date_trans_time"],
+            "%Y-%m-%d %H:%M:%S",
+        )
+    except ValueError:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Invalid trans_date_trans_time format. "
+                        "Expected YYYY-MM-DD HH:MM:SS"
+                    )
+                }
+            ),
+            400,
+        )
+
+    try:
+        # Convert the validated transaction into a DataFrame
         transaction = pd.DataFrame([data])
 
+        # Generate fraud probability
         fraud_probability = float(model.predict_proba(transaction)[0, 1])
 
+        # Generate binary fraud prediction
         fraud_prediction = int(model.predict(transaction)[0])
 
         return jsonify(
