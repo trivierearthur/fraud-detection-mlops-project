@@ -1,6 +1,0 @@
-trans_date_trans_time,merchant,category,amt,city,state,lat,long,city_pop,job,dob,trans_num,merch_lat,merch_long,is_fraud
-14-08-2026 10:12,Local Home Supplies,home,15.2,Mound City,MO,40.1362,-95.2138,1631,Architect,20-01-1953,NORMAL_SYN_001,39.984044,-96.203203,0
-14-08-2026 14:05,Pet Corner Store,kids_pets,11.8,Westerville,NE,41.4193,-99.3844,73,Product designer,10-02-1935,NORMAL_SYN_002,40.64874,-99.414601,0
-14-08-2026 19:40,Travel Booking Desk,travel,37.5,Independence,MO,39.1412,-94.3515,123373,"""Engineer, production""",27-11-1992,AMBIGUOUS_SYN_001,38.303165,-94.062587,1
-14-08-2026 01:52,Night Grocery Express,grocery_pos,335.0,Hubbell,NE,40.0456,-97.4735,121,Set designer,04-04-1996,SUSPICIOUS_SYN_001,39.785211,-96.60896,1
-14-08-2026 02:47,Fast Online MegaDeals,shopping_net,1299.0,La Grande,OR,45.3304,-118.0852,16955,"""Engineer, site""",16-06-1961,VERY_RISKY_SYN_001,44.449987,-118.256304,1
