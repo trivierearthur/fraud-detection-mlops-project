@@ -185,10 +185,39 @@ def evaluate_model(
 
 
 def save_model(pipeline: Pipeline) -> None:
-    """Persist the full fitted pipeline for production prediction."""
+    """Persist the fitted pipeline with a simple model version."""
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(pipeline, MODEL_FILE)
-    print(f"Saved full prediction pipeline to: {MODEL_FILE}")
+
+    # Find existing model versions
+    existing_models = list(MODELS_DIR.glob("fraud_model_v*.joblib"))
+
+    if existing_models:
+        versions = []
+        for model_path in existing_models:
+            try:
+                version = int(model_path.stem.replace("fraud_model_v", ""))
+                versions.append(version)
+            except ValueError:
+                continue
+
+        next_version = max(versions, default=0) + 1
+    else:
+        next_version = 1
+
+    model_file = MODELS_DIR / f"fraud_model_v{next_version}.joblib"
+
+    joblib.dump(pipeline, model_file)
+
+    # Keep track of the currently active model
+    current_model_file = MODELS_DIR / "current_model.txt"
+    current_model_file.write_text(
+        model_file.name,
+        encoding="utf-8",
+    )
+
+    print(f"Saved model version: v{next_version}")
+    print(f"Model path: {model_file}")
+    print(f"Current model: {current_model_file}")
 
 
 def check_for_leakage(
