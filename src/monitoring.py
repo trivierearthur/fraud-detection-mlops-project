@@ -1,15 +1,20 @@
 from pathlib import Path
 
 import pandas as pd
-from scipy.stats import ks_2samp, chi2_contingency
+from scipy.stats import chi2_contingency, ks_2samp
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
 
-REFERENCE_FILE = PROJECT_ROOT / "data" / "processed" / "cleaned_fraud_data.csv"
+# Reference data used to train the model
+REFERENCE_FILE = PROJECT_ROOT / "data" / "processed" / "fraud_data_cleaned.csv"
 
-CURRENT_FILE = PROJECT_ROOT / "data" / "example" / "prediction_input.csv"
+# Current/incoming data to monitor
+CURRENT_FILE = (
+    PROJECT_ROOT / "data" / "raw" / "synthetic_mixed_transactions_v3_nolabel.csv"
+)
 
+# Statistical significance threshold
 SIGNIFICANCE_LEVEL = 0.05
 
 
@@ -48,21 +53,32 @@ def check_numerical_drift(
     reference: pd.DataFrame,
     current: pd.DataFrame,
 ):
-    """Check numerical features using the KS test."""
+    """Check numerical features using the Kolmogorov-Smirnov test."""
 
     results = []
 
     for feature in NUMERICAL_FEATURES:
 
-        if feature not in reference.columns or feature not in current.columns:
-            print(f"Warning: {feature} not available. Skipping.")
+        if feature not in reference.columns:
+            print(f"Warning: {feature} is missing from reference data. " "Skipping.")
             continue
 
-        reference_values = pd.to_numeric(reference[feature], errors="coerce").dropna()
+        if feature not in current.columns:
+            print(f"Warning: {feature} is missing from current data. " "Skipping.")
+            continue
 
-        current_values = pd.to_numeric(current[feature], errors="coerce").dropna()
+        reference_values = pd.to_numeric(
+            reference[feature],
+            errors="coerce",
+        ).dropna()
+
+        current_values = pd.to_numeric(
+            current[feature],
+            errors="coerce",
+        ).dropna()
 
         if len(reference_values) == 0 or len(current_values) == 0:
+            print(f"Warning: {feature} contains no usable values. " "Skipping.")
             continue
 
         statistic, p_value = ks_2samp(
@@ -70,15 +86,13 @@ def check_numerical_drift(
             current_values,
         )
 
-        drift = p_value < SIGNIFICANCE_LEVEL
-
         results.append(
             {
                 "feature": feature,
                 "test": "KS",
                 "statistic": statistic,
                 "p_value": p_value,
-                "drift": drift,
+                "drift": p_value < SIGNIFICANCE_LEVEL,
             }
         )
 
@@ -89,14 +103,18 @@ def check_categorical_drift(
     reference: pd.DataFrame,
     current: pd.DataFrame,
 ):
-    """Check categorical features using the chi-square test."""
+    """Check categorical features using a chi-square test."""
 
     results = []
 
     for feature in CATEGORICAL_FEATURES:
 
-        if feature not in reference.columns or feature not in current.columns:
-            print(f"Warning: {feature} not available. Skipping.")
+        if feature not in reference.columns:
+            print(f"Warning: {feature} is missing from reference data. " "Skipping.")
+            continue
+
+        if feature not in current.columns:
+            print(f"Warning: {feature} is missing from current data. " "Skipping.")
             continue
 
         reference_counts = reference[feature].value_counts()
@@ -123,45 +141,23 @@ def check_categorical_drift(
 
         chi2, p_value, _, _ = chi2_contingency(contingency_table)
 
-        drift = p_value < SIGNIFICANCE_LEVEL
-
         results.append(
             {
                 "feature": feature,
                 "test": "Chi-square",
                 "statistic": chi2,
                 "p_value": p_value,
-                "drift": drift,
+                "drift": p_value < SIGNIFICANCE_LEVEL,
             }
         )
 
     return results
 
 
-def main():
+def print_results(results):
+    """Print drift results in a readable format."""
 
-    print("Data Drift Monitoring")
-    print("=====================")
-
-    reference, current = load_data()
-
-    print(f"Reference rows: {len(reference):,}")
-    print(f"Current rows:   {len(current):,}")
-    print()
-
-    numerical_results = check_numerical_drift(
-        reference,
-        current,
-    )
-
-    categorical_results = check_categorical_drift(
-        reference,
-        current,
-    )
-
-    results = numerical_results + categorical_results
-
-    print("Drift results")
+    print("\nDrift results")
     print("-------------")
 
     for result in results:
@@ -175,10 +171,37 @@ def main():
             f"{status}"
         )
 
+
+def main():
+
+    print("Data Drift Monitoring")
+    print("=====================")
+
+    reference, current = load_data()
+
+    print(f"Reference rows: {len(reference):,}")
+    print(f"Current rows:   {len(current):,}")
+
+    results = []
+
+    numerical_results = check_numerical_drift(
+        reference,
+        current,
+    )
+
+    categorical_results = check_categorical_drift(
+        reference,
+        current,
+    )
+
+    results.extend(numerical_results)
+    results.extend(categorical_results)
+
+    print_results(results)
+
     drift_detected = any(result["drift"] for result in results)
 
-    print()
-    print("Overall result")
+    print("\nOverall result")
     print("--------------")
 
     if drift_detected:
