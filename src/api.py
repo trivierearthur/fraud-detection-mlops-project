@@ -6,39 +6,41 @@ from flask import Flask, jsonify, request
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
-MODEL_FILE = PROJECT_ROOT / "models" / "fraud_model.joblib"
 
+MODELS_DIR = PROJECT_ROOT / "models"
+CURRENT_MODEL_FILE = MODELS_DIR / "current_model.txt"
 
 app = Flask(__name__)
 
 
-# Load the trained pipeline when the API starts
-if not MODEL_FILE.exists():
-    raise FileNotFoundError(
-        f"Saved model not found at {MODEL_FILE}. " "Run train_model.py first."
-    )
+def load_current_model():
+    """Load the model specified by current_model.txt."""
 
-model = joblib.load(MODEL_FILE)
+    if not CURRENT_MODEL_FILE.exists():
+        raise FileNotFoundError(
+            f"Current model file not found at {CURRENT_MODEL_FILE}. "
+            "Run train_model.py first."
+        )
+
+    model_filename = CURRENT_MODEL_FILE.read_text(encoding="utf-8").strip()
+
+    if not model_filename:
+        raise ValueError(f"{CURRENT_MODEL_FILE} is empty.")
+
+    model_path = MODELS_DIR / model_filename
+
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Model specified in current_model.txt was not found: " f"{model_path}"
+        )
+
+    print(f"Loading model: {model_path}")
+
+    return joblib.load(model_path)
 
 
-# Raw features required by the prediction pipeline.
-# is_fraud is intentionally excluded because it is the target.
-REQUIRED_FEATURES = [
-    "trans_date_trans_time",
-    "merchant",
-    "category",
-    "amt",
-    "city",
-    "state",
-    "lat",
-    "long",
-    "city_pop",
-    "job",
-    "dob",
-    "trans_num",
-    "merch_lat",
-    "merch_long",
-]
+# Load the current production model when the API starts
+model = load_current_model()
 
 
 @app.route("/health", methods=["GET"])
@@ -50,32 +52,17 @@ def health():
 def predict():
     data = request.get_json()
 
-    # Reject empty or missing JSON requests
+    if data is None:
+        return jsonify({"error": "Request must contain JSON data"}), 400
+
     if not data:
         return jsonify({"error": "Request body cannot be empty"}), 400
 
-    # Check that all required raw features are present
-    missing_features = [feature for feature in REQUIRED_FEATURES if feature not in data]
-
-    if missing_features:
-        return (
-            jsonify(
-                {
-                    "error": "Missing required features",
-                    "missing": missing_features,
-                }
-            ),
-            400,
-        )
-
     try:
-        # Convert the incoming transaction to a DataFrame
         transaction = pd.DataFrame([data])
 
-        # Generate fraud probability
         fraud_probability = float(model.predict_proba(transaction)[0, 1])
 
-        # Generate binary fraud prediction
         fraud_prediction = int(model.predict(transaction)[0])
 
         return jsonify(
