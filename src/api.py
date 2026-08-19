@@ -75,7 +75,7 @@ def health():
 def predict():
     """Predict the fraud probability for one transaction."""
 
-    data = request.get_json()
+    data = request.get_json(silent=True)
 
     # Check that JSON was provided
     if data is None:
