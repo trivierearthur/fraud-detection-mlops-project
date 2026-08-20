@@ -89,7 +89,7 @@ jobs:
               cp "data/monthly/month_${MONTH}.csv" data/raw/fraud_data.csv
 
               echo ">>> Starting automatic retraining"
-              python src/retrain.py
+              python -m src.retrain
 
               echo ">>> Retraining completed for month $MONTH"
 
