@@ -2,6 +2,24 @@ import subprocess
 import sys
 import time
 import webbrowser
+from urllib.request import urlopen
+
+FLASK_URL = "http://127.0.0.1:5000/health"
+STREAMLIT_URL = "http://127.0.0.1:8501"
+
+
+def wait_for_server(url, timeout=30):
+    """Wait until a local web server becomes available."""
+    start_time = time.time()
+
+    while time.time() - start_time < timeout:
+        try:
+            with urlopen(url, timeout=1):
+                return True
+        except Exception:
+            time.sleep(0.5)
+
+    return False
 
 
 def main():
@@ -9,11 +27,16 @@ def main():
     print()
 
     # Start Flask API
-    print("Starting Flask API on port 5000...")
+    print("Starting Flask API...")
     flask_process = subprocess.Popen([sys.executable, "src/api.py"])
 
-    # Give Flask a moment to start
-    time.sleep(3)
+    # Wait for Flask to become available
+    if not wait_for_server(FLASK_URL):
+        print("ERROR: Flask API failed to start.")
+        flask_process.terminate()
+        return
+
+    print("Flask API is running.")
 
     # Start Streamlit
     print("Starting Streamlit interface...")
@@ -24,26 +47,34 @@ def main():
             "streamlit",
             "run",
             "src/streamlit_app.py",
+            "--server.headless=true",
         ]
     )
 
-    # Give Streamlit a moment to start
-    time.sleep(4)
+    # Wait for Streamlit to become available
+    if not wait_for_server(STREAMLIT_URL):
+        print("ERROR: Streamlit failed to start.")
+        flask_process.terminate()
+        streamlit_process.terminate()
+        return
 
-    # Open the application in the browser
-    print("Opening Fraud Detection interface...")
-    webbrowser.open("http://localhost:8501")
+    print("Streamlit interface is running.")
+    print()
+
+    # Open browser only after Streamlit is ready
+    print("Opening application in browser...")
+    webbrowser.open(STREAMLIT_URL)
 
     print()
-    print("Application running.")
-    print("Streamlit: http://localhost:8501")
-    print("Flask API: http://localhost:5000")
+    print("Application running:")
+    print(f"  Streamlit: {STREAMLIT_URL}")
+    print("  Flask API: http://127.0.0.1:5000")
     print()
     print("Press Ctrl+C to stop the application.")
 
     try:
-        # Keep the launcher alive while both services are running
         while True:
+
             if flask_process.poll() is not None:
                 print("Flask API stopped.")
                 break
@@ -59,8 +90,11 @@ def main():
         print("Stopping application...")
 
     finally:
-        # Stop both processes
+
+        print("Stopping Flask API...")
         flask_process.terminate()
+
+        print("Stopping Streamlit...")
         streamlit_process.terminate()
 
         flask_process.wait()
