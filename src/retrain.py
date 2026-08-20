@@ -1,6 +1,7 @@
-from pathlib import Path
+# pyright: strict
 import subprocess
 import sys
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -18,9 +19,7 @@ def retrain_model() -> None:
     )
 
     if result.returncode != 0:
-        raise RuntimeError(
-            f"Model retraining failed with exit code {result.returncode}."
-        )
+        raise RuntimeError(f"Model retraining failed with exit code {result.returncode}.")
 
     print("\nModel retraining completed successfully.")
 

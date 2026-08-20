@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Retrain monthly even without detected drift, per the brief's "after a
+    # given time (one month) or after the incoming data has changed" rule.
+    - cron: "0 3 1 * *"
 
 jobs:
   monitor-and-retrain:
@@ -14,21 +18,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
         with:
-          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install just
+        uses: extractions/setup-just@v2
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: uv sync --locked
 
       - name: Run tests
         env:
           API_KEY: ${{ secrets.API_KEY }}
-        run: pytest
+        run: just test
 
       - name: Generate monthly simulation data
-        run: python src/simulate_months.py
+        run: just simulate
 
       - name: Monitor 12 months and retrain on drift
         shell: bash
@@ -50,33 +57,7 @@ jobs:
 
             set +e
 
-            python - "$month" <<'PY'
-          import sys
-          from src.monitoring import (
-              load_reference_data,
-              load_monthly_data,
-              monitor_month,
-          )
-
-          month = int(sys.argv[1])
-
-          reference = load_reference_data()
-          current = load_monthly_data(month)
-
-          result = monitor_month(
-              reference=reference,
-              current=current,
-              month=month,
-          )
-
-          if result["drift_detected"]:
-              print("DRIFT_DETECTED")
-              sys.exit(1)
-
-          print("NO_DRIFT")
-          sys.exit(0)
-          PY
-
+            just monitor-month "$month"
             STATUS=$?
 
             set -u
@@ -89,7 +70,7 @@ jobs:
               cp "data/monthly/month_${MONTH}.csv" data/raw/fraud_data.csv
 
               echo ">>> Starting automatic retraining"
-              python -m src.retrain
+              just retrain
 
               echo ">>> Retraining completed for month $MONTH"
 
@@ -105,9 +86,9 @@ jobs:
             fi
           done
 
-      - name: Validate latest model
+      - name: Validate latest model artifact
         run: |
-          python - <<'PY'
+          uv run python - <<'PY'
           from pathlib import Path
           import joblib
 
@@ -133,6 +114,57 @@ jobs:
           print(f"Current model: {model_name}")
           print("Latest model loaded successfully.")
           PY
+
+      - name: Verify the retrained model is reachable over the API
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        shell: bash
+        run: |
+          set -e
+
+          uv run python src/api.py &
+          API_PID=$!
+
+          echo "Waiting for the API to become available..."
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:5000/health > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl -sf http://127.0.0.1:5000/health > /dev/null; then
+            echo "API never became reachable."
+            kill "$API_PID" || true
+            exit 1
+          fi
+
+          echo "API is up. Scoring a sample transaction against the retrained model..."
+
+          RESPONSE=$(curl -sf -X POST http://127.0.0.1:5000/predict \
+            -H "Authorization: Bearer ${API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "trans_date_trans_time": "01-01-2025 12:30",
+              "merchant": "Test Merchant",
+              "category": "grocery_pos",
+              "amt": 50.0,
+              "city": "Test City",
+              "state": "CA",
+              "lat": 40.0,
+              "long": -75.0,
+              "city_pop": 100000,
+              "job": "Analyst",
+              "dob": "01-01-1990",
+              "trans_num": "CI123",
+              "merch_lat": 40.1,
+              "merch_long": -75.1
+            }')
+
+          echo "Response: $RESPONSE"
+          echo "$RESPONSE" | grep -q "fraud_probability"
+
+          kill "$API_PID"
 
       - name: Show generated model versions
         run: |

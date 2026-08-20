@@ -10,6 +10,20 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: Train pipeline",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: API only",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/api.py",
+            "console": "integratedTerminal"
         }
     ]
 }

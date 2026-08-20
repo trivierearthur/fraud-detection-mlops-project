@@ -115,7 +115,6 @@ predict_button = st.button(
 
 
 if predict_button:
-
     if not API_KEY:
         st.error("API key not configured.")
         st.stop()
@@ -142,7 +141,6 @@ if predict_button:
     }
 
     try:
-
         response = requests.post(
             f"{API_URL}/predict",
             json=transaction,
@@ -151,7 +149,6 @@ if predict_button:
         )
 
         if response.status_code == 200:
-
             result = response.json()
 
             probability = result["fraud_probability"]
@@ -180,14 +177,11 @@ if predict_button:
                     )
 
             if prediction == 1:
-                st.error(
-                    "⚠️ This transaction has been flagged as potentially fraudulent."
-                )
+                st.error("⚠️ This transaction has been flagged as potentially fraudulent.")
             else:
                 st.success("✅ This transaction has been classified as legitimate.")
 
         else:
-
             error_data = response.json()
 
             st.error(
@@ -198,13 +192,10 @@ if predict_button:
             )
 
     except requests.exceptions.ConnectionError:
-
-        st.error("Could not connect to the Flask API. " "Make sure api.py is running.")
+        st.error("Could not connect to the Flask API. Make sure api.py is running.")
 
     except requests.exceptions.Timeout:
-
         st.error("The API request timed out.")
 
     except Exception as error:
-
         st.error(f"Unexpected error: {error}")

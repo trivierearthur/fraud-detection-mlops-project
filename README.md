@@ -33,60 +33,36 @@ flowchart LR
    statistical drift tests (Kolmogorov-Smirnov for numeric features,
    chi-square for categorical features) against the reference training data.
 4. **Retrain** (`src/retrain.py`): triggered when drift is detected, re-runs
-   the training pipeline (`python -m src.train_model`) to produce a new
+   the training pipeline (`python -m src.retrain`) to produce a new
    model version, restarting the cycle.
 
 This cycle is automated in [`.github/workflows/mlops.yml`](.github/workflows/mlops.yml),
-which simulates all 12 months, monitors each one, and retrains automatically
-whenever drift is found. [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-runs the test suite on every push.
-
-## Project structure
-
-```
-main.py                 # Entry point for the training pipeline
-run_app.py               # Entry point for serving (API + Streamlit UI)
-requirements.txt
-
-data/
-  raw/                    # Original raw dataset (fraud_data.csv)
-  processed/              # Cleaned dataset used as drift reference
-  monthly/                # Simulated monthly data (with injected drift)
-  example/                # Sample input for manual predictions
-
-models/
-  fraud_model_v*.joblib   # Versioned trained models
-  current_model.txt       # Name of the model currently in production
-
-notebooks/
-  eda.py                  # Exploratory data analysis (manual, not in pipeline)
-
-src/
-  data_loader.py          # load_raw_data()
-  preprocess.py            # Feature engineering + cleaning (used by train_model)
-  train_model.py           # train() — full training/selection/versioning pipeline
-  predict.py               # CLI scoring of transactions with the saved model
-  api.py                    # Flask API (/health, /predict)
-  auth.py                   # API key authentication (Bearer token)
-  streamlit_app.py          # Web UI calling the Flask API
-  simulate_months.py        # Generates 12 months of synthetic drifted data
-  monitoring.py              # Statistical drift detection (KS test, chi-square)
-  retrain.py                  # Re-runs train_model as a subprocess when drift hits
-
-tests/
-  test_api.py               # API tests
-
-.github/workflows/
-  ci.yml                     # Runs tests on push
-  mlops.yml                  # Monitors 12 simulated months, retrains on drift
-```
+which runs monthly and on every push to `main`: it simulates all 12 months,
+monitors each one, retrains automatically whenever drift is found, and then
+verifies the retrained model is actually reachable over the API.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `just check`
+(formatting, linting, type checking, tests) on every push and pull request.
 
 ## Setup
 
+All tasks run through [`just`](https://github.com/casey/just), a task runner —
+one short command per job instead of remembering long ones. Install it once:
+
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+winget install --id Casey.Just
+```
+
+Then install [`uv`](https://docs.astral.sh/uv/) (manages the Python version,
+virtual environment, and dependencies):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Set up the project:
+
+```powershell
+just setup
 ```
 
 Copy `.env.example` to `.env` and set your API key:
@@ -95,12 +71,14 @@ Copy `.env.example` to `.env` and set your API key:
 API_KEY=your-api-key-here
 ```
 
+Run `just` with no arguments to see every available command.
+
 ## Usage
 
 ### 1. Train a model
 
 ```powershell
-python main.py
+just train
 ```
 
 Saves a new versioned model to `models/` and updates `current_model.txt`.
@@ -108,7 +86,7 @@ Saves a new versioned model to `models/` and updates `current_model.txt`.
 ### 2. Serve the app (API + UI)
 
 ```powershell
-python run_app.py
+just serve
 ```
 
 Starts the Flask API on `http://127.0.0.1:5000` and the Streamlit UI on
@@ -123,40 +101,45 @@ curl -X POST http://127.0.0.1:5000/predict `
   -d '{"trans_date_trans_time": "01-01-2024 12:00", ...}'
 ```
 
-Or score from the command line without the API:
-
-```powershell
-python src/predict.py --input-csv data/example/prediction_input.csv --output-csv predictions.csv
-```
-
 ### 3. Simulate data and check for drift
 
 ```powershell
-python src/simulate_months.py
-python src/monitoring.py --month 4
+just simulate
+just monitor
 ```
 
-Omit `--month` to run all 12 months at once (annual simulation mode).
+`just monitor` checks all 12 simulated months at once. To check a single
+month (used by the CI/CD workflow), run `just monitor-month 4`.
 Drift is injected into months 4, 6, 8, 10 and 12 to demonstrate detection.
 
 ### 4. Retrain on drift
 
 ```powershell
-python -m src.retrain
+just retrain
 ```
 
 Re-runs the training pipeline and produces the next model version
 (e.g. `fraud_model_v6.joblib`).
 
-### 5. Run tests
+### 5. Check everything (format, lint, type-check, test)
 
 ```powershell
-pytest
+just check
 ```
+
+This is the exact command CI runs — a green `just check` locally means a
+green pipeline. Individual pieces (`just fmt`, `just lint`, `just typecheck`,
+`just test`) are also available for faster iteration.
 
 ## CI/CD
 
-- **`ci.yml`** — installs dependencies and runs `pytest` on every push.
-- **`mlops.yml`** — simulates 12 months of data, runs drift monitoring for
-  each month, and automatically retrains the model whenever drift is
-  detected, then validates that a new model version was produced.
+- **`ci.yml`** — installs dependencies with `uv` and runs `just check` on
+  every push and pull request.
+- **`mlops.yml`** — runs monthly (scheduled) and on every push to `main`:
+  simulates 12 months of data, runs drift monitoring for each month,
+  automatically retrains the model whenever drift is detected, and verifies
+  the retrained model is reachable over the live API.
+
+CI runs on Linux; local development happens on Windows. `just check` passing
+locally is what guarantees CI will also pass — see `ACTION_PLAN.md` if
+something diverges between the two.

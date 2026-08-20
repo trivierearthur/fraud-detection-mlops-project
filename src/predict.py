@@ -1,6 +1,7 @@
+import sys
 from argparse import ArgumentParser
 from pathlib import Path
-import sys
+from typing import Any
 
 import joblib
 import pandas as pd
@@ -13,14 +14,16 @@ try:
     from src.data_loader import load_raw_data
 except ModuleNotFoundError:
     try:
-        from fraud_detection_mlops_project.src.data_loader import load_raw_data
+        from fraud_detection_mlops_project.src.data_loader import (  # pyright: ignore[reportMissingImports]
+            load_raw_data,
+        )
     except ModuleNotFoundError:
         if str(CURRENT_DIR) not in sys.path:
             sys.path.append(str(CURRENT_DIR))
         from data_loader import load_raw_data
 
 
-def load_model():
+def load_model() -> Any:
     """Load the saved end-to-end fraud pipeline from disk."""
     if not MODEL_FILE.exists():
         raise FileNotFoundError(
@@ -45,8 +48,7 @@ def load_prediction_input(
     raw_df = load_raw_data()
     if sample_row < 0 or sample_row >= len(raw_df):
         raise IndexError(
-            "sample_row="
-            f"{sample_row} is outside the dataset range 0-{len(raw_df) - 1}."
+            f"sample_row={sample_row} is outside the dataset range 0-{len(raw_df) - 1}."
         )
 
     print(
@@ -56,7 +58,7 @@ def load_prediction_input(
     return raw_df.iloc[[sample_row]].copy()
 
 
-def predict_transactions(model, transactions: pd.DataFrame) -> pd.DataFrame:
+def predict_transactions(model: Any, transactions: pd.DataFrame) -> pd.DataFrame:
     """Return input rows enriched with fraud probability and class label."""
     fraud_probability = model.predict_proba(transactions)[:, 1]
     fraud_prediction = model.predict(transactions)

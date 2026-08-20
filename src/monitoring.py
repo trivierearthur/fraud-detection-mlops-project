@@ -1,8 +1,13 @@
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 from scipy.stats import chi2_contingency, ks_2samp
+
+# Result dicts here mix str/float/bool values; a TypedDict would be more
+# precise but adds ceremony for a project this size.
+DriftResult = dict[str, Any]
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
@@ -34,7 +39,7 @@ CATEGORICAL_FEATURES = [
 ]
 
 
-def load_reference_data():
+def load_reference_data() -> pd.DataFrame:
     """Load the reference dataset."""
 
     if not REFERENCE_FILE.exists():
@@ -43,7 +48,7 @@ def load_reference_data():
     return pd.read_csv(REFERENCE_FILE)
 
 
-def load_monthly_data(month: int):
+def load_monthly_data(month: int) -> pd.DataFrame:
     """Load one simulated month's data."""
 
     month_file = MONTHLY_DIR / f"month_{month:02d}.csv"
@@ -54,13 +59,15 @@ def load_monthly_data(month: int):
     return pd.read_csv(month_file)
 
 
-def check_numerical_drift(reference, current):
+def check_numerical_drift(
+    reference: pd.DataFrame,
+    current: pd.DataFrame,
+) -> list[DriftResult]:
     """Use the Kolmogorov-Smirnov test for numerical features."""
 
     results = []
 
     for feature in NUMERICAL_FEATURES:
-
         if feature not in reference.columns:
             continue
 
@@ -80,10 +87,14 @@ def check_numerical_drift(reference, current):
         if len(reference_values) == 0 or len(current_values) == 0:
             continue
 
-        statistic, p_value = ks_2samp(
+        ks_result = ks_2samp(
             reference_values,
             current_values,
         )
+        # scipy-stubs types ks_2samp's return as a generic tuple, so the
+        # unpacked elements lose their float type — cast to what they are.
+        statistic = cast("float", ks_result[0])
+        p_value = cast("float", ks_result[1])
 
         results.append(
             {
@@ -98,13 +109,15 @@ def check_numerical_drift(reference, current):
     return results
 
 
-def check_categorical_drift(reference, current):
+def check_categorical_drift(
+    reference: pd.DataFrame,
+    current: pd.DataFrame,
+) -> list[DriftResult]:
     """Use a chi-square test for categorical features."""
 
     results = []
 
     for feature in CATEGORICAL_FEATURES:
-
         if feature not in reference.columns:
             continue
 
@@ -133,7 +146,10 @@ def check_categorical_drift(reference, current):
             ]
         )
 
-        chi2, p_value, _, _ = chi2_contingency(contingency_table)
+        chi2_result = chi2_contingency(contingency_table)
+        # Same scipy-stubs limitation as ks_2samp above.
+        chi2 = cast("float", chi2_result[0])
+        p_value = cast("float", chi2_result[1])
 
         results.append(
             {
@@ -148,7 +164,7 @@ def check_categorical_drift(reference, current):
     return results
 
 
-def monitor_month(reference, current, month):
+def monitor_month(reference: pd.DataFrame, current: pd.DataFrame, month: int) -> DriftResult:
     """Run all drift tests for one month."""
 
     numerical_results = check_numerical_drift(
@@ -171,24 +187,18 @@ def monitor_month(reference, current, month):
     print("-------")
 
     for result in results:
-
         status = "DRIFT" if result["drift"] else "OK"
 
         print(
-            f"{result['feature']:<25}"
-            f"{result['test']:<12}"
-            f"p={result['p_value']:.4f}  "
-            f"{status}"
+            f"{result['feature']:<25}{result['test']:<12}p={result['p_value']:.4f}  {status}"
         )
 
     if drift_detected:
-
-        print(f"RESULT: DRIFT DETECTED " f"({len(drifted_features)} feature(s))")
+        print(f"RESULT: DRIFT DETECTED ({len(drifted_features)} feature(s))")
 
         print("Action: retraining required.")
 
     else:
-
         print("RESULT: NO SIGNIFICANT DRIFT")
 
         print("Action: keep the current model.")
@@ -200,7 +210,7 @@ def monitor_month(reference, current, month):
     }
 
 
-def build_argument_parser():
+def build_argument_parser() -> ArgumentParser:
     """Define command-line options."""
 
     parser = ArgumentParser(description="Monitor incoming transaction data for drift.")
@@ -210,14 +220,13 @@ def build_argument_parser():
         type=int,
         choices=range(1, 13),
         default=None,
-        help=("Month to monitor. If omitted, all 12 months " "are monitored."),
+        help=("Month to monitor. If omitted, all 12 months are monitored."),
     )
 
     return parser
 
 
-def main():
-
+def main() -> int:
     args = build_argument_parser().parse_args()
 
     print("Data Drift Monitoring")
@@ -225,7 +234,7 @@ def main():
 
     reference = load_reference_data()
 
-    print(f"Reference dataset: " f"{len(reference):,} rows")
+    print(f"Reference dataset: {len(reference):,} rows")
 
     # ---------------------------------------------------------
     # Single-month mode
@@ -233,7 +242,6 @@ def main():
     # ---------------------------------------------------------
 
     if args.month is not None:
-
         current = load_monthly_data(args.month)
 
         result = monitor_month(
@@ -257,7 +265,6 @@ def main():
     monthly_results = []
 
     for month in range(1, 13):
-
         current = load_monthly_data(month)
 
         result = monitor_month(
@@ -273,33 +280,26 @@ def main():
     print("====================")
 
     for result in monthly_results:
-
         if result["drift_detected"]:
-
             features = ", ".join(result["drifted_features"])
 
-            print(f"Month {result['month']:02d}: " f"DRIFT -> {features}")
+            print(f"Month {result['month']:02d}: DRIFT -> {features}")
 
         else:
+            print(f"Month {result['month']:02d}: NO DRIFT")
 
-            print(f"Month {result['month']:02d}: " "NO DRIFT")
-
-    drift_months = [
-        result["month"] for result in monthly_results if result["drift_detected"]
-    ]
+    drift_months = [result["month"] for result in monthly_results if result["drift_detected"]]
 
     print()
-    print(f"Months with detected drift: " f"{len(drift_months)}/12")
+    print(f"Months with detected drift: {len(drift_months)}/12")
 
     if drift_months:
-
         print(
             "Retraining would be triggered for: "
             + ", ".join(f"month {month:02d}" for month in drift_months)
         )
 
     else:
-
         print("No retraining would be triggered.")
 
     return 0

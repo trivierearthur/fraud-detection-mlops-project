@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud Detection Defense Map</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%A7%AD</text></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #F2F4F8;
+    --surface: #FFFFFF;
+    --surface-2: #E7EAF1;
+    --ink: #14213D;
+    --ink-soft: #4B5670;
+    --ink-faint: #7C87A0;
+    --border: #D7DCE6;
+
+    --c-context: #55617C;
+    --c-arch:    #2A3B6B;
+    --c-data:    #157A72;
+    --c-model:   #B8790E;
+    --c-serve:   #2F6690;
+    --c-loop:    #A93A54;
+    --c-close:   #2E7350;
+
+    --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-body: 'Public Sans', -apple-system, 'Segoe UI', Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D131F;
+      --surface: #151C2C;
+      --surface-2: #1D2538;
+      --ink: #EDEFF4;
+      --ink-soft: #B7BFD3;
+      --ink-faint: #8792AA;
+      --border: #2A3350;
+
+      --c-context: #98A2BE;
+      --c-arch:    #9FB0E6;
+      --c-data:    #3FCFC0;
+      --c-model:   #E7AC44;
+      --c-serve:   #74AEDD;
+      --c-loop:    #EB7791;
+      --c-close:   #66CC94;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0D131F;
+    --surface: #151C2C;
+    --surface-2: #1D2538;
+    --ink: #EDEFF4;
+    --ink-soft: #B7BFD3;
+    --ink-faint: #8792AA;
+    --border: #2A3350;
+
+    --c-context: #98A2BE;
+    --c-arch:    #9FB0E6;
+    --c-data:    #3FCFC0;
+    --c-model:   #E7AC44;
+    --c-serve:   #74AEDD;
+    --c-loop:    #EB7791;
+    --c-close:   #66CC94;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1460px;
+    margin: 0 auto;
+    padding: 56px 32px 72px;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 14px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(28px, 3.4vw, 40px);
+    line-height: 1.15;
+    text-wrap: balance;
+    margin: 0 0 18px;
+    max-width: 16ch;
+  }
+
+  .intro {
+    font-size: 16.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    max-width: 70ch;
+    margin: 0 0 8px;
+  }
+
+  .intro strong {
+    color: var(--c-loop);
+    font-weight: 600;
+  }
+
+  .criteria {
+    margin-top: 34px;
+  }
+
+  .criteria-label {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 12px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .chip {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 9px 14px;
+    min-width: 150px;
+  }
+
+  .chip .name {
+    display: block;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  .chip .hint {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.4;
+  }
+
+  figure {
+    margin: 44px 0 0;
+  }
+
+  .diagram-wrap {
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 8px;
+  }
+
+  svg { display: block; width: 100%; height: auto; }
+
+  figcaption {
+    font-size: 13px;
+    color: var(--ink-faint);
+    margin-top: 12px;
+    max-width: 70ch;
+  }
+
+  .card-title { font-family: var(--font-display); font-weight: 600; font-size: 20px; }
+  .card-tag { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.03em; font-weight: 600; }
+  .card-bullet { font-family: var(--font-body); font-size: 13.5px; fill: var(--ink-soft); }
+  .card-evidence { font-family: var(--font-mono); font-size: 11px; fill: var(--ink-faint); }
+  .card-rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.25; }
+  .hub-outer { fill: none; stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 5; }
+  .hub-inner { fill: var(--surface-2); stroke: var(--ink); stroke-width: 2; }
+  .hub-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; fill: var(--ink-faint); }
+  .hub-title { font-family: var(--font-display); font-weight: 600; font-size: 25px; fill: var(--ink); }
+  .hub-sub { font-family: var(--font-display); font-size: 15px; fill: var(--ink-soft); }
+  .branch-path { fill: none; stroke-width: 2.5; stroke-linecap: round; }
+  .node-dot { }
+
+  .branch-context .branch-path, .branch-context .node-dot, .branch-context .card-tag { stroke: var(--c-context); fill: var(--c-context); }
+  .branch-arch .branch-path, .branch-arch .node-dot, .branch-arch .card-tag { stroke: var(--c-arch); fill: var(--c-arch); }
+  .branch-data .branch-path, .branch-data .node-dot, .branch-data .card-tag { stroke: var(--c-data); fill: var(--c-data); }
+  .branch-model .branch-path, .branch-model .node-dot, .branch-model .card-tag { stroke: var(--c-model); fill: var(--c-model); }
+  .branch-serve .branch-path, .branch-serve .node-dot, .branch-serve .card-tag { stroke: var(--c-serve); fill: var(--c-serve); }
+  .branch-loop .branch-path, .branch-loop .node-dot, .branch-loop .card-tag { stroke: var(--c-loop); fill: var(--c-loop); }
+  .branch-close .branch-path, .branch-close .node-dot, .branch-close .card-tag { stroke: var(--c-close); fill: var(--c-close); }
+
+  .branch-loop .card-rect { stroke: var(--c-loop); stroke-width: 2; }
+
+  footer {
+    margin-top: 34px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    max-width: 70ch;
+  }
+
+  footer a { color: var(--c-loop); }
+</style>
+</head>
+<body>
+<div class="page">
+  <p class="eyebrow">Presentation prep — DLBDSMTP01, Task 3</p>
+  <h1>Your Oral Defense, Mapped</h1>
+  <p class="intro">
+    This is a rehearsal aid, not the presentation itself — one branch per talking
+    block, arranged in the order that reads best out loud. Every card names the
+    brief requirement it satisfies, the points worth saying, and exactly where in
+    the repo to point when someone asks "show me." Work outward from the hub, and
+    give the most time to <strong>Monitor → Retrain</strong> — it's the
+    requirement the whole task is built around.
+  </p>
+
+  <div class="criteria">
+    <p class="criteria-label">You are graded on</p>
+    <ul class="chips">
+      <li class="chip"><span class="name">Process</span><span class="hint">Was it built correctly, end to end</span></li>
+      <li class="chip"><span class="name">Creativity</span><span class="hint">Confident problem-solving, not just steps followed</span></li>
+      <li class="chip"><span class="name">Result</span><span class="hint">Does it actually run and hold up</span></li>
+      <li class="chip"><span class="name">Rhetoric</span><span class="hint">Pace, clarity, how you carry the room</span></li>
+      <li class="chip"><span class="name">Supporting visuals</span><span class="hint">This map counts here too</span></li>
+    </ul>
+  </div>
+
+  <figure>
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 1700 1070" role="img" aria-label="Mind map of the oral defense: a central hub for the fraud detection MLOps project branching into seven talking sections — Why This Matters, System Architecture, Data and Features, Model Selection, Serving as an API, Monitor to Retrain (the spotlight requirement), and Strengths and Close — each with its brief requirement code, key talking points, and the file to point at.">
+
+        <!-- connectors: top row -->
+        <g class="branch-context"><path class="branch-path" d="M720,455 Q500,365 280,270" /><circle class="node-dot" cx="720" cy="455" r="4" /><circle class="node-dot" cx="280" cy="270" r="5" /></g>
+        <g class="branch-arch"><path class="branch-path" d="M790,455 Q720,365 660,270" /><circle class="node-dot" cx="790" cy="455" r="4" /><circle class="node-dot" cx="660" cy="270" r="5" /></g>
+        <g class="branch-data"><path class="branch-path" d="M910,455 Q980,365 1040,270" /><circle class="node-dot" cx="910" cy="455" r="4" /><circle class="node-dot" cx="1040" cy="270" r="5" /></g>
+        <g class="branch-model"><path class="branch-path" d="M980,455 Q1200,365 1420,270" /><circle class="node-dot" cx="980" cy="455" r="4" /><circle class="node-dot" cx="1420" cy="270" r="5" /></g>
+
+        <!-- connectors: bottom row -->
+        <g class="branch-serve"><path class="branch-path" d="M770,635 Q550,725 350,820" /><circle class="node-dot" cx="770" cy="635" r="4" /><circle class="node-dot" cx="350" cy="820" r="5" /></g>
+        <g class="branch-loop"><path class="branch-path" d="M850,635 Q850,725 850,820" /><circle class="node-dot" cx="850" cy="635" r="4" /><circle class="node-dot" cx="850" cy="820" r="5" /></g>
+        <g class="branch-close"><path class="branch-path" d="M930,635 Q1150,725 1350,820" /><circle class="node-dot" cx="930" cy="635" r="4" /><circle class="node-dot" cx="1350" cy="820" r="5" /></g>
+
+        <!-- hub -->
+        <ellipse class="hub-outer" cx="850" cy="545" rx="182" ry="112" />
+        <ellipse class="hub-inner" cx="850" cy="545" rx="170" ry="100" />
+        <text class="hub-eyebrow" x="850" y="516" text-anchor="middle">ORAL DEFENSE MAP</text>
+        <text class="hub-title" x="850" y="550" text-anchor="middle">Fraud Detection</text>
+        <text class="hub-sub" x="850" y="576" text-anchor="middle">MLOps Pipeline</text>
+
+        <!-- Card A: Context -->
+        <g class="branch-context">
+          <rect class="card-rect" x="110" y="60" width="340" height="210" rx="12" />
+          <text class="card-tag" x="130" y="88">SET-UP</text>
+          <text class="card-title" x="130" y="118" fill="var(--ink)">Why This Matters</text>
+          <text class="card-bullet">
+            <tspan x="130" y="148">– Government agency, support programs</tspan>
+            <tspan x="130" y="170">– Fraud rising, huge application volume</tspan>
+            <tspan x="130" y="192">– Manual review can't scale anymore</tspan>
+            <tspan x="130" y="214">– Goal: auto-flag fraud, retrain easily</tspan>
+          </text>
+          <text class="card-evidence" x="130" y="240">no code needed — just context</text>
+        </g>
+
+        <!-- Card B: Architecture -->
+        <g class="branch-arch">
+          <rect class="card-rect" x="490" y="60" width="340" height="210" rx="12" />
+          <text class="card-tag" x="510" y="88">R1 · Q5</text>
+          <text class="card-title" x="510" y="118" fill="var(--ink)">System Architecture</text>
+          <text class="card-bullet">
+            <tspan x="510" y="148">– Show the pipeline diagram first</tspan>
+            <tspan x="510" y="170">– Ingest→train→serve→monitor→retrain</tspan>
+            <tspan x="510" y="192">– Tools: sklearn, Flask, GH Actions</tspan>
+            <tspan x="510" y="214">– This diagram IS your design answer</tspan>
+          </text>
+          <text class="card-evidence" x="510" y="240">README.md — pipeline diagram</text>
+        </g>
+
+        <!-- Card C: Data -->
+        <g class="branch-data">
+          <rect class="card-rect" x="870" y="60" width="340" height="210" rx="12" />
+          <text class="card-tag" x="890" y="88">R2 · Q3</text>
+          <text class="card-title" x="890" y="118" fill="var(--ink)">Data &amp; Features</text>
+          <text class="card-bullet">
+            <tspan x="890" y="148">– Cite your data source out loud</tspan>
+            <tspan x="890" y="170">– Raw → cleaned → feature-engineered</tspan>
+            <tspan x="890" y="192">– Age from DOB, distance via haversine</tspan>
+            <tspan x="890" y="214">– High-cardinality columns auto-dropped</tspan>
+          </text>
+          <text class="card-evidence" x="890" y="240">src/preprocess.py</text>
+        </g>
+
+        <!-- Card D: Model -->
+        <g class="branch-model">
+          <rect class="card-rect" x="1250" y="60" width="340" height="210" rx="12" />
+          <text class="card-tag" x="1270" y="88">R3</text>
+          <text class="card-title" x="1270" y="118" fill="var(--ink)">Model Selection</text>
+          <text class="card-bullet">
+            <tspan x="1270" y="148">– 3 models: log-reg, random forest, SVC</tspan>
+            <tspan x="1270" y="170">– Picked by PR-AUC, not accuracy — why?</tspan>
+            <tspan x="1270" y="192">– class_weight=balanced + stratified CV</tspan>
+            <tspan x="1270" y="214">– Versioned: fraud_model_v1, v2, v3…</tspan>
+          </text>
+          <text class="card-evidence" x="1270" y="240">src/train_model.py</text>
+        </g>
+
+        <!-- Card E: Serving -->
+        <g class="branch-serve">
+          <rect class="card-rect" x="120" y="820" width="460" height="210" rx="12" />
+          <text class="card-tag" x="140" y="848">R4 · R5 · Q1 · Q2</text>
+          <text class="card-title" x="140" y="878" fill="var(--ink)">Serving as an API</text>
+          <text class="card-bullet">
+            <tspan x="140" y="908">– Flask /predict + /health, Streamlit UI</tspan>
+            <tspan x="140" y="930">– API-key auth — only approved callers</tspan>
+            <tspan x="140" y="952">– Rejects bad input before scoring</tspan>
+            <tspan x="140" y="974">– Same features live as in training</tspan>
+          </text>
+          <text class="card-evidence" x="140" y="1000">src/api.py + src/auth.py</text>
+        </g>
+
+        <!-- Card F: MLOps loop (spotlight) -->
+        <g class="branch-loop">
+          <rect class="card-rect" x="620" y="820" width="460" height="210" rx="12" />
+          <text class="card-tag" x="640" y="848">R6 — SPOTLIGHT</text>
+          <text class="card-title" x="640" y="878" fill="var(--ink)">Monitor → Retrain</text>
+          <text class="card-bullet">
+            <tspan x="640" y="908">– Drift tests: KS test + chi-square</tspan>
+            <tspan x="640" y="930">– 12 simulated months, drift in 5</tspan>
+            <tspan x="640" y="952">– Retrains monthly OR the moment drift hits</tspan>
+            <tspan x="640" y="974">– Retrained model re-verified live via API</tspan>
+          </text>
+          <text class="card-evidence" x="640" y="1000">.github/workflows/mlops.yml</text>
+        </g>
+
+        <!-- Card G: Strengths / Close -->
+        <g class="branch-close">
+          <rect class="card-rect" x="1120" y="820" width="460" height="210" rx="12" />
+          <text class="card-tag" x="1140" y="848">WRAP-UP · Q6</text>
+          <text class="card-title" x="1140" y="878" fill="var(--ink)">Strengths &amp; Close</text>
+          <text class="card-bullet">
+            <tspan x="1140" y="908">– One pipeline trains AND serves — no skew</tspan>
+            <tspan x="1140" y="930">– Thought about audit trail, unprompted</tspan>
+            <tspan x="1140" y="952">– Next: log predictions, cite data source</tspan>
+            <tspan x="1140" y="974">– Close with the repo link, ready for Q&amp;A</tspan>
+          </text>
+          <text class="card-evidence" x="1140" y="1000">have the repo URL ready</text>
+        </g>
+
+      </svg>
+    </div>
+    <figcaption>
+      Seven branches, hub to edge: Context sets up the problem, Architecture through
+      Serving walk the pipeline in build order, Monitor → Retrain is the graded
+      spotlight, and Strengths &amp; Close is where you show you understand the
+      project beyond what was asked.
+    </figcaption>
+  </figure>
+
+  <footer>
+    Before you present: rehearse pointing at real files while you talk through each
+    card — don't just read the bullets. If a follow-up question catches you
+    off guard mid-defense, <code>REQUIREMENTS.md</code> in the repo has the full
+    requirement-by-requirement compliance table to fall back on.
+  </footer>
+</div>
+</body>
+</html>

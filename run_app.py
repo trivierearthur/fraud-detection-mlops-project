@@ -1,3 +1,4 @@
+# pyright: strict
 import subprocess
 import sys
 import time
@@ -8,7 +9,7 @@ FLASK_URL = "http://127.0.0.1:5000/health"
 STREAMLIT_URL = "http://127.0.0.1:8501"
 
 
-def wait_for_server(url, timeout=30):
+def wait_for_server(url: str, timeout: float = 30) -> bool:
     """Wait until a local web server becomes available."""
     start_time = time.time()
 
@@ -22,7 +23,7 @@ def wait_for_server(url, timeout=30):
     return False
 
 
-def main():
+def main() -> None:
     print("Starting Fraud Detection application...")
     print()
 
@@ -74,7 +75,6 @@ def main():
 
     try:
         while True:
-
             if flask_process.poll() is not None:
                 print("Flask API stopped.")
                 break
@@ -90,7 +90,6 @@ def main():
         print("Stopping application...")
 
     finally:
-
         print("Stopping Flask API...")
         flask_process.terminate()
 

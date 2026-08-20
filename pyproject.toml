@@ -1,0 +1,79 @@
+[project]
+name = "fraud-detection-mlops-project"
+version = "0.1.0"
+description = "Fraud detection MLOps pipeline: train, serve, monitor for drift, retrain."
+requires-python = "==3.12.*"
+dependencies = [
+    "numpy>=2.5.2",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "joblib>=1.5.3",
+    "scipy>=1.14",
+    "flask>=3.1.3",
+    "python-dotenv>=1.2.3",
+    "streamlit>=1.62.0",
+    "requests>=2.34.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.2",
+    "ruff>=0.8",
+    "pyright>=1.1.390",
+    "pandas-stubs>=2.2",
+]
+
+[tool.ruff]
+line-length = 95
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # import sorting
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear (common bug patterns)
+    "SIM", # flake8-simplify
+    "ANN", # flake8-annotations (require type hints on his own functions)
+]
+ignore = [
+    "ANN401", # Any is sometimes the honest type for sklearn estimators
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Exploratory analysis script, not production code — relax annotation
+# requirements and allow the print()-based reporting style it already uses.
+"notebooks/*.py" = ["ANN"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pyright]
+include = ["src", "tests", "scripts", "main.py", "run_app.py"]
+exclude = ["**/__pycache__", ".venv"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+# pandas/sklearn are largely untyped; these rules would otherwise bury real
+# bugs under hundreds of library-boundary noise errors. See ACTION_PLAN.md
+# for the ratchet path to tightening this later.
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportMissingTypeStubs = false
+# These catch real bugs in his own code and stay on.
+reportMissingParameterType = true
+reportUnnecessaryComparison = true
+reportUnusedVariable = true
+reportUnusedImport = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+# This is a runnable app, not a library meant to be pip-installed elsewhere —
+# skip building a wheel for it. "src" stays importable via pythonpath above.
+package = false

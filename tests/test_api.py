@@ -1,7 +1,9 @@
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from flask.testing import FlaskClient
 
 # Add the src directory to Python's import path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -9,12 +11,12 @@ SRC_DIR = PROJECT_ROOT / "src"
 
 sys.path.insert(0, str(SRC_DIR))
 
-from api import app
-from auth import API_KEY
+from api import app  # noqa: E402 — must follow the sys.path setup above
+from auth import API_KEY  # noqa: E402 — must follow the sys.path setup above
 
 
 @pytest.fixture
-def client():
+def client() -> Iterator[FlaskClient]:
     """Create a Flask test client."""
     app.config["TESTING"] = True
 
@@ -40,12 +42,12 @@ VALID_TRANSACTION = {
 }
 
 
-def auth_headers():
+def auth_headers() -> dict[str, str]:
     """Return authentication headers using the configured API key."""
     return {"Authorization": f"Bearer {API_KEY}"}
 
 
-def test_health(client):
+def test_health(client: FlaskClient) -> None:
     """Health endpoint should return status ok."""
     response = client.get("/health")
 
@@ -53,7 +55,7 @@ def test_health(client):
     assert response.get_json() == {"status": "ok"}
 
 
-def test_predict_without_api_key(client):
+def test_predict_without_api_key(client: FlaskClient) -> None:
     """Prediction should require authentication."""
     response = client.post(
         "/predict",
@@ -66,7 +68,7 @@ def test_predict_without_api_key(client):
     assert data["error"] == "Authentication required"
 
 
-def test_predict_with_invalid_api_key(client):
+def test_predict_with_invalid_api_key(client: FlaskClient) -> None:
     """Prediction should reject an invalid API key."""
     response = client.post(
         "/predict",
@@ -80,7 +82,7 @@ def test_predict_with_invalid_api_key(client):
     assert data["error"] == "Invalid API key"
 
 
-def test_predict_with_valid_api_key(client):
+def test_predict_with_valid_api_key(client: FlaskClient) -> None:
     """Prediction should work with the configured API key."""
     response = client.post(
         "/predict",
@@ -99,7 +101,7 @@ def test_predict_with_valid_api_key(client):
     assert data["fraud_prediction"] in [0, 1]
 
 
-def test_predict_without_json(client):
+def test_predict_without_json(client: FlaskClient) -> None:
     """Prediction should reject requests without JSON."""
     response = client.post(
         "/predict",
@@ -112,7 +114,7 @@ def test_predict_without_json(client):
     assert data["error"] == "Request must contain JSON data"
 
 
-def test_predict_missing_fields(client):
+def test_predict_missing_fields(client: FlaskClient) -> None:
     """Prediction should reject incomplete transactions."""
     incomplete_transaction = {
         "amt": 50.0,
@@ -133,7 +135,7 @@ def test_predict_missing_fields(client):
     assert len(data["fields"]) > 0
 
 
-def test_predict_invalid_data_type(client):
+def test_predict_invalid_data_type(client: FlaskClient) -> None:
     """Prediction should reject invalid field types."""
     invalid_transaction = VALID_TRANSACTION.copy()
     invalid_transaction["amt"] = "fifty"
@@ -151,7 +153,7 @@ def test_predict_invalid_data_type(client):
     assert data["error"] == "Invalid type for 'amt'"
 
 
-def test_predict_invalid_datetime(client):
+def test_predict_invalid_datetime(client: FlaskClient) -> None:
     """Prediction should reject an invalid datetime format."""
     invalid_transaction = VALID_TRANSACTION.copy()
     invalid_transaction["trans_date_trans_time"] = "2025-01-01 12:30"

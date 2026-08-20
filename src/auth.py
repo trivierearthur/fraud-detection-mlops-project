@@ -1,19 +1,22 @@
+# pyright: strict
 import os
+from collections.abc import Callable
 from functools import wraps
+from typing import Any
 
 from dotenv import load_dotenv
-from flask import jsonify, request
+from flask import Response, jsonify, request
 
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 
 
-def require_api_key(f):
+def require_api_key(f: Callable[..., Any]) -> Callable[..., Any]:
     """Require a valid API key to access a protected endpoint."""
 
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any | tuple[Response, int]:
 
         auth_header = request.headers.get("Authorization")
 

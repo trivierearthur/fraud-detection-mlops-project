@@ -13,6 +13,7 @@ retrain.py reuses run_training_pipeline() when drift is detected
 by monitoring.py, closing the CI/CD loop.
 """
 
+# pyright: strict
 import logging
 from pathlib import Path
 

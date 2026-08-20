@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
@@ -17,7 +17,9 @@ try:
     from src.data_loader import load_raw_data
 except ModuleNotFoundError:
     try:
-        from fraud_detection_mlops_project.src.data_loader import load_raw_data
+        from fraud_detection_mlops_project.src.data_loader import (  # pyright: ignore[reportMissingImports]
+            load_raw_data,
+        )
     except ModuleNotFoundError:
         if str(CURRENT_DIR) not in sys.path:
             sys.path.append(str(CURRENT_DIR))
@@ -63,9 +65,18 @@ def clean_target_is_fraud(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
 # ---------------------------------------------------------------------------
 
 
-def haversine_km(lat1, lon1, lat2, lon2):
+def haversine_km(
+    lat1: pd.Series,
+    lon1: pd.Series,
+    lat2: pd.Series,
+    lon2: pd.Series,
+) -> Any:
     """
     Compute great-circle distance between two geographic coordinates.
+
+    Returns a Series at runtime (numpy ufuncs preserve pandas types via
+    __array_ufunc__), but numpy's stubs type elementwise ops as ndarray,
+    so the static return type is left as Any rather than fighting the stub.
 
     Parameters
     ----------
@@ -89,10 +100,7 @@ def haversine_km(lat1, lon1, lat2, lon2):
     dlat = lat2_rad - lat1_rad
     dlon = lon2_rad - lon1_rad
 
-    a = (
-        np.sin(dlat / 2) ** 2
-        + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(dlon / 2) ** 2
-    )
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(dlon / 2) ** 2
 
     return 2 * radius_km * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
 

@@ -15,7 +15,7 @@ MONTHS = 12
 ROWS_PER_MONTH = 1000
 
 
-def load_source_data():
+def load_source_data() -> pd.DataFrame:
     if not SOURCE_FILE.exists():
         raise FileNotFoundError(f"Source dataset not found: {SOURCE_FILE}")
 
@@ -82,8 +82,7 @@ def create_monthly_data(
     return monthly
 
 
-def main():
-
+def main() -> None:
     print("Creating monthly simulation data")
     print("================================")
 
@@ -99,7 +98,6 @@ def main():
     rng = np.random.default_rng(RANDOM_STATE)
 
     for month in range(1, MONTHS + 1):
-
         monthly = create_monthly_data(
             source=source,
             month=month,
@@ -113,7 +111,7 @@ def main():
             index=False,
         )
 
-        print(f"Month {month:02d}: " f"{len(monthly):,} rows → {output_file.name}")
+        print(f"Month {month:02d}: {len(monthly):,} rows → {output_file.name}")
 
     print()
     print("Monthly simulation completed.")

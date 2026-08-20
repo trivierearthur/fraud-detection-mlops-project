@@ -1,9 +1,11 @@
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import joblib
 import pandas as pd
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
+
 from auth import require_api_key
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -34,13 +36,12 @@ EXPECTED_TYPES = {
 }
 
 
-def load_current_model():
+def load_current_model() -> Any:
     """Load the model specified by current_model.txt."""
 
     if not CURRENT_MODEL_FILE.exists():
         raise FileNotFoundError(
-            f"Current model file not found at {CURRENT_MODEL_FILE}. "
-            "Run train_model.py first."
+            f"Current model file not found at {CURRENT_MODEL_FILE}. Run train_model.py first."
         )
 
     model_filename = CURRENT_MODEL_FILE.read_text(encoding="utf-8").strip()
@@ -52,7 +53,7 @@ def load_current_model():
 
     if not model_path.exists():
         raise FileNotFoundError(
-            f"Model specified in current_model.txt was not found: " f"{model_path}"
+            f"Model specified in current_model.txt was not found: {model_path}"
         )
 
     print(f"Loading model: {model_path}")
@@ -65,14 +66,14 @@ model = load_current_model()
 
 
 @app.route("/health", methods=["GET"])
-def health():
+def health() -> Response:
     """Check whether the API is running."""
     return jsonify({"status": "ok"})
 
 
 @app.route("/predict", methods=["POST"])
 @require_api_key
-def predict():
+def predict() -> Response | tuple[Response, int]:
     """Predict the fraud probability for one transaction."""
 
     data = request.get_json(silent=True)
@@ -102,9 +103,7 @@ def predict():
     # Check data types
     for field, expected_type in EXPECTED_TYPES.items():
         if not isinstance(data[field], expected_type):
-            expected = (
-                "number" if isinstance(expected_type, tuple) else expected_type.__name__
-            )
+            expected = "number" if isinstance(expected_type, tuple) else expected_type.__name__
 
             return (
                 jsonify(
@@ -126,12 +125,7 @@ def predict():
     except ValueError:
         return (
             jsonify(
-                {
-                    "error": (
-                        "Invalid trans_date_trans_time format. "
-                        "Expected DD-MM-YYYY HH:MM"
-                    )
-                }
+                {"error": ("Invalid trans_date_trans_time format. Expected DD-MM-YYYY HH:MM")}
             ),
             400,
         )

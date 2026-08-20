@@ -4,7 +4,6 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
@@ -22,12 +21,12 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import SVC
 
+from src.data_loader import load_raw_data
 from src.preprocess import (
     TransactionFeatureTransformer,
     engineer_transaction_features,
     prepare_training_dataframe,
 )
-from src.data_loader import load_raw_data
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -119,7 +118,7 @@ def get_models() -> dict[str, Any]:
         ),
         "svc": CalibratedClassifierCV(
             estimator=SVC(
-                probability=False,
+                probability=False,  # pyright: ignore[reportArgumentType] — sklearn stub types this as str, actual API takes bool
                 class_weight="balanced",
                 random_state=42,
             ),
@@ -144,17 +143,17 @@ def evaluate_model(
         "precision": precision_score(
             y,
             predictions,
-            zero_division=0,
+            zero_division=0,  # pyright: ignore[reportArgumentType] — sklearn stub types this as str, actual API also takes 0/1
         ),
         "recall": recall_score(
             y,
             predictions,
-            zero_division=0,
+            zero_division=0,  # pyright: ignore[reportArgumentType]
         ),
         "f1": f1_score(
             y,
             predictions,
-            zero_division=0,
+            zero_division=0,  # pyright: ignore[reportArgumentType]
         ),
     }
 
@@ -199,12 +198,7 @@ def save_model(pipeline: Pipeline) -> Path:
         encoding="utf-8",
     )
 
-    print(
-        f"\nModel saved successfully:"
-        f"\n  {model_path}"
-        f"\nCurrent model:"
-        f"\n  {model_filename}"
-    )
+    print(f"\nModel saved successfully:\n  {model_path}\nCurrent model:\n  {model_filename}")
 
     return model_path
 
@@ -283,7 +277,6 @@ def train() -> Path:
     print("\nTraining candidate models...")
 
     for model_name, estimator in get_models().items():
-
         print(f"\nModel: {model_name}")
 
         fold_scores = []
@@ -295,7 +288,6 @@ def train() -> Path:
             cv.split(x, y),
             start=1,
         ):
-
             x_train = x.iloc[train_idx]
             x_validation = x.iloc[validation_idx]
 
@@ -331,9 +323,9 @@ def train() -> Path:
             for metric in fold_scores[0]
         }
 
-        print(f"  Mean ROC-AUC: " f"{mean_metrics['roc_auc']:.4f}")
+        print(f"  Mean ROC-AUC: {mean_metrics['roc_auc']:.4f}")
 
-        print(f"  Mean PR-AUC: " f"{mean_metrics['pr_auc']:.4f}")
+        print(f"  Mean PR-AUC: {mean_metrics['pr_auc']:.4f}")
 
         results.append(
             {
@@ -353,9 +345,9 @@ def train() -> Path:
     print("\nBest model:")
     print(f"  {best_model_name}")
 
-    print(f"  PR-AUC: " f"{best_result['pr_auc']:.4f}")
+    print(f"  PR-AUC: {best_result['pr_auc']:.4f}")
 
-    print(f"  ROC-AUC: " f"{best_result['roc_auc']:.4f}")
+    print(f"  ROC-AUC: {best_result['roc_auc']:.4f}")
 
     # 5. Retrain selected model on all available data
     print("\nTraining final model on full dataset...")

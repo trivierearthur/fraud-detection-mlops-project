@@ -1,2 +1,4 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto detect text files, normalize line endings to LF in the repository so
+# CRLF from Windows checkouts doesn't produce noisy diffs or break scripts
+# when CI runs on Linux.
+* text=auto eol=lf

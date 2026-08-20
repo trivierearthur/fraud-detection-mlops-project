@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -109,9 +109,7 @@ def temporal_summary(df: pd.DataFrame) -> None:
         return
 
     try:
-        df[time_col] = pd.to_datetime(
-            df[time_col], format="%d-%m-%Y %H:%M", errors="coerce"
-        )
+        df[time_col] = pd.to_datetime(df[time_col], format="%d-%m-%Y %H:%M", errors="coerce")
     except Exception:
         df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
 
@@ -134,12 +132,7 @@ def temporal_summary(df: pd.DataFrame) -> None:
     print("\nTemporal fraud analysis")
     # Show the total number of fraud cases by hour, weekday, and month.
     print("Fraud by hour")
-    print(
-        df.groupby("hour")["is_fraud_clean"]
-        .sum()
-        .sort_values(ascending=False)
-        .to_string()
-    )
+    print(df.groupby("hour")["is_fraud_clean"].sum().sort_values(ascending=False).to_string())
 
     print("\nFraud by weekday")
     print(
@@ -245,9 +238,7 @@ def city_fraud_summary(df: pd.DataFrame) -> None:
     print(top_fraud_count.to_string(index=False))
 
     stable_cities = city_summary[city_summary["total_transactions"] >= 20]
-    top_fraud_rate = stable_cities.sort_values("fraud_rate_pct", ascending=False).head(
-        10
-    )
+    top_fraud_rate = stable_cities.sort_values("fraud_rate_pct", ascending=False).head(10)
     print("\nTop 10 cities by fraud rate (min 20 transactions)")
     print(top_fraud_rate.to_string(index=False))
 
@@ -279,10 +270,7 @@ def create_visuals(df: pd.DataFrame) -> None:
 
     # Plot fraud rate by transaction category and annotate the total fraud cases.
     category_rate = (
-        df.groupby("category")["is_fraud_clean"]
-        .mean()
-        .sort_values(ascending=False)
-        .head(10)
+        df.groupby("category")["is_fraud_clean"].mean().sort_values(ascending=False).head(10)
     )
     category_total = (
         df.groupby("category")["is_fraud_clean"].sum().reindex(category_rate.index)
@@ -292,7 +280,7 @@ def create_visuals(df: pd.DataFrame) -> None:
     ax.set_title("Top 10 categories by fraud rate (with total fraud cases)")
     ax.set_ylabel("Fraud rate")
     ax.set_xlabel("Category")
-    for bar, total in zip(bars.patches, category_total.values):
+    for bar, total in zip(bars.patches, category_total.values, strict=True):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height(),
@@ -308,10 +296,7 @@ def create_visuals(df: pd.DataFrame) -> None:
 
     # Plot fraud rate by state and annotate the total fraud cases.
     state_rate = (
-        df.groupby("state")["is_fraud_clean"]
-        .mean()
-        .sort_values(ascending=False)
-        .head(10)
+        df.groupby("state")["is_fraud_clean"].mean().sort_values(ascending=False).head(10)
     )
     state_total = df.groupby("state")["is_fraud_clean"].sum().reindex(state_rate.index)
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -319,7 +304,7 @@ def create_visuals(df: pd.DataFrame) -> None:
     ax.set_title("Top 10 states by fraud rate (with total fraud cases)")
     ax.set_ylabel("Fraud rate")
     ax.set_xlabel("State")
-    for bar, total in zip(bars.patches, state_total.values):
+    for bar, total in zip(bars.patches, state_total.values, strict=True):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height(),
@@ -342,9 +327,7 @@ def create_visuals(df: pd.DataFrame) -> None:
     ax.set_ylabel("Count")
     ax.set_xticklabels(["Non-fraud (0)", "Fraud (1)"], rotation=0)
     fig.tight_layout()
-    fig.savefig(
-        plots_dir / "fraud_transaction_counts.png", dpi=300, bbox_inches="tight"
-    )
+    fig.savefig(plots_dir / "fraud_transaction_counts.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
     # Plot customer age distribution for fraud vs non-fraud.
@@ -354,9 +337,7 @@ def create_visuals(df: pd.DataFrame) -> None:
             df["trans_date_trans_time"], dayfirst=True, errors="coerce"
         )
         df["customer_age"] = (trans_time - dob).dt.days / 365.25
-        df["customer_age"] = df["customer_age"].where(
-            df["customer_age"].between(0, 110)
-        )
+        df["customer_age"] = df["customer_age"].where(df["customer_age"].between(0, 110))
 
         fraud_age = df.loc[df["is_fraud_clean"] == 1, "customer_age"].dropna()
         nonfraud_age = df.loc[df["is_fraud_clean"] == 0, "customer_age"].dropna()
@@ -369,18 +350,13 @@ def create_visuals(df: pd.DataFrame) -> None:
         ax.set_ylabel("Count")
         ax.legend()
         fig.tight_layout()
-        fig.savefig(
-            plots_dir / "fraud_age_distribution.png", dpi=300, bbox_inches="tight"
-        )
+        fig.savefig(plots_dir / "fraud_age_distribution.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
 
     # Plot top cities by fraud count.
     if "city" in df.columns:
         city_fraud = (
-            df.groupby("city")["is_fraud_clean"]
-            .sum()
-            .sort_values(ascending=False)
-            .head(35)
+            df.groupby("city")["is_fraud_clean"].sum().sort_values(ascending=False).head(35)
         )
         city_fraud = city_fraud.sort_values(ascending=True)
         fig, ax = plt.subplots(figsize=(12, 11))
@@ -406,9 +382,7 @@ def create_visuals(df: pd.DataFrame) -> None:
         city_summary["fraud_rate_pct"] = (
             city_summary["fraud_count"] / city_summary["total_transactions"] * 100
         )
-        top_city_rate = city_summary.sort_values(
-            "fraud_rate_pct", ascending=False
-        ).head(35)
+        top_city_rate = city_summary.sort_values("fraud_rate_pct", ascending=False).head(35)
         top_city_rate = top_city_rate.sort_values("fraud_rate_pct", ascending=True)
 
         fig, ax = plt.subplots(figsize=(13, 12))
@@ -421,12 +395,10 @@ def create_visuals(df: pd.DataFrame) -> None:
 
         # Add per-city volume context at the end of each bar.
         rate_max = (
-            float(top_city_rate["fraud_rate_pct"].max())
-            if not top_city_rate.empty
-            else 0
+            float(top_city_rate["fraud_rate_pct"].max()) if not top_city_rate.empty else 0
         )
         ax.set_xlim(0, rate_max * 1.35 if rate_max > 0 else 1)
-        for bar, (_, row) in zip(ax.patches, top_city_rate.iterrows()):
+        for bar, (_, row) in zip(ax.patches, top_city_rate.iterrows(), strict=True):
             label = (
                 f"T:{int(row['total_transactions'])} "
                 f"F:{int(row['fraud_count'])} "
@@ -487,7 +459,7 @@ def create_visuals(df: pd.DataFrame) -> None:
         ax.set_title("Fraud rate by hour of day (with total fraud cases)")
         ax.set_ylabel("Fraud rate")
         ax.set_xlabel("Hour")
-        for x, y in zip(hourly_rate.index, hourly_rate.values):
+        for x, y in zip(hourly_rate.index, hourly_rate.values, strict=True):
             ax.text(
                 x,
                 y,
