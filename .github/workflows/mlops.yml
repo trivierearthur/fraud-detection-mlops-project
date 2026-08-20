@@ -1,14 +1,17 @@
+```yaml
 name: MLOps - Monitoring and Retraining
 
 on:
   workflow_dispatch:
-
+  push:
+    branches: [main]
 
 jobs:
   monitor-and-retrain:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -28,7 +31,6 @@ jobs:
           API_KEY: ${{ secrets.API_KEY }}
         shell: bash
         run: |
-          set -e
 
           echo "======================================"
           echo "MLOps monthly monitoring simulation"
@@ -45,6 +47,7 @@ jobs:
 
             python - "$month" <<'PY'
           import sys
+
           from src.monitoring import (
               load_reference_data,
               load_monthly_data,
@@ -63,31 +66,40 @@ jobs:
           )
 
           if result["drift_detected"]:
-              print("DRIFT_DETECTED")
-              sys.exit(1)
+              with open("drift_result.txt", "w") as file:
+                  file.write("DRIFT")
           else:
-              print("NO_DRIFT")
-              sys.exit(0)
+              with open("drift_result.txt", "w") as file:
+                  file.write("NO_DRIFT")
           PY
 
-            STATUS=$?
+            RESULT=$(cat drift_result.txt)
 
-            if [ "$STATUS" -eq 1 ]; then
+            echo "Monitoring result: $RESULT"
+
+            if [ "$RESULT" = "DRIFT" ]; then
+
               echo ""
               echo ">>> Drift detected for month $MONTH"
               echo ">>> Updating training data"
 
-              cp "data/monthly/month_${MONTH}.csv" data/raw/fraud_data.csv
+              cp "data/monthly/month_${MONTH}.csv" \
+                 data/raw/fraud_data.csv
 
               echo ">>> Starting automatic retraining"
+
               python src/retrain.py
 
               echo ">>> Retraining completed for month $MONTH"
+
             else
+
               echo ""
               echo ">>> No drift detected for month $MONTH"
               echo ">>> Keeping current model"
+
             fi
+
           done
 
       - name: Validate latest model
@@ -123,3 +135,4 @@ jobs:
         run: |
           echo "Generated model versions:"
           ls -lh models/fraud_model_v*.joblib
+```
