@@ -1,17 +1,16 @@
-```yaml
 name: MLOps - Monitoring and Retraining
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   monitor-and-retrain:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -23,14 +22,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Run tests
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        run: pytest
+
       - name: Generate monthly simulation data
         run: python src/simulate_months.py
 
       - name: Monitor 12 months and retrain on drift
-        env:
-          API_KEY: ${{ secrets.API_KEY }}
         shell: bash
         run: |
+          set -u
 
           echo "======================================"
           echo "MLOps monthly monitoring simulation"
@@ -45,9 +48,10 @@ jobs:
             echo "Processing month $MONTH"
             echo "======================================"
 
+            set +e
+
             python - "$month" <<'PY'
           import sys
-
           from src.monitoring import (
               load_reference_data,
               load_monthly_data,
@@ -66,40 +70,39 @@ jobs:
           )
 
           if result["drift_detected"]:
-              with open("drift_result.txt", "w") as file:
-                  file.write("DRIFT")
-          else:
-              with open("drift_result.txt", "w") as file:
-                  file.write("NO_DRIFT")
+              print("DRIFT_DETECTED")
+              sys.exit(1)
+
+          print("NO_DRIFT")
+          sys.exit(0)
           PY
 
-            RESULT=$(cat drift_result.txt)
+            STATUS=$?
 
-            echo "Monitoring result: $RESULT"
+            set -u
 
-            if [ "$RESULT" = "DRIFT" ]; then
-
+            if [ "$STATUS" -eq 1 ]; then
               echo ""
               echo ">>> Drift detected for month $MONTH"
               echo ">>> Updating training data"
 
-              cp "data/monthly/month_${MONTH}.csv" \
-                 data/raw/fraud_data.csv
+              cp "data/monthly/month_${MONTH}.csv" data/raw/fraud_data.csv
 
               echo ">>> Starting automatic retraining"
-
               python src/retrain.py
 
               echo ">>> Retraining completed for month $MONTH"
 
-            else
-
+            elif [ "$STATUS" -eq 0 ]; then
               echo ""
               echo ">>> No drift detected for month $MONTH"
               echo ">>> Keeping current model"
 
+            else
+              echo ""
+              echo ">>> Monitoring failed for month $MONTH"
+              exit "$STATUS"
             fi
-
           done
 
       - name: Validate latest model
@@ -135,4 +138,3 @@ jobs:
         run: |
           echo "Generated model versions:"
           ls -lh models/fraud_model_v*.joblib
-```
