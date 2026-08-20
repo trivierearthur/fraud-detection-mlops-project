@@ -9,28 +9,23 @@ load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
 
-def require_api_key(f):
-    """Require a valid API key to access a protected endpoint."""
+def require_api_key(function):
+    @wraps(function)
+    def decorated(*args, **kwargs):
 
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
+        authorization = request.headers.get("Authorization")
 
-        auth_header = request.headers.get("Authorization")
-
-        if not auth_header:
+        if not authorization:
             return jsonify({"error": "Authentication required"}), 401
 
-        if not auth_header.startswith("Bearer "):
-            return jsonify({"error": "Invalid authentication format"}), 401
+        if not authorization.startswith("Bearer "):
+            return jsonify({"error": "Invalid API key"}), 401
 
-        token = auth_header.split(" ", 1)[1]
-
-        if not API_KEY:
-            return jsonify({"error": "API authentication is not configured"}), 500
+        token = authorization.split(" ", 1)[1]
 
         if token != API_KEY:
             return jsonify({"error": "Invalid API key"}), 401
 
-        return f(*args, **kwargs)
+        return function(*args, **kwargs)
 
-    return decorated_function
+    return decorated
