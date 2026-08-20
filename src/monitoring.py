@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from pathlib import Path
 
 import pandas as pd
@@ -181,11 +182,13 @@ def monitor_month(reference, current, month):
         )
 
     if drift_detected:
+
         print(f"RESULT: DRIFT DETECTED " f"({len(drifted_features)} feature(s))")
 
-        print("Action: model retraining should be triggered.")
+        print("Action: retraining required.")
 
     else:
+
         print("RESULT: NO SIGNIFICANT DRIFT")
 
         print("Action: keep the current model.")
@@ -197,7 +200,25 @@ def monitor_month(reference, current, month):
     }
 
 
+def build_argument_parser():
+    """Define command-line options."""
+
+    parser = ArgumentParser(description="Monitor incoming transaction data for drift.")
+
+    parser.add_argument(
+        "--month",
+        type=int,
+        choices=range(1, 13),
+        default=None,
+        help=("Month to monitor. If omitted, all 12 months " "are monitored."),
+    )
+
+    return parser
+
+
 def main():
+
+    args = build_argument_parser().parse_args()
 
     print("Data Drift Monitoring")
     print("=====================")
@@ -205,6 +226,33 @@ def main():
     reference = load_reference_data()
 
     print(f"Reference dataset: " f"{len(reference):,} rows")
+
+    # ---------------------------------------------------------
+    # Single-month mode
+    # Used by GitHub Actions to trigger retraining.
+    # ---------------------------------------------------------
+
+    if args.month is not None:
+
+        current = load_monthly_data(args.month)
+
+        result = monitor_month(
+            reference=reference,
+            current=current,
+            month=args.month,
+        )
+
+        # Exit code 1 means drift was detected.
+        # GitHub Actions can use this to trigger retraining.
+        if result["drift_detected"]:
+            return 1
+
+        return 0
+
+    # ---------------------------------------------------------
+    # Annual simulation mode
+    # Used for local demonstration and testing.
+    # ---------------------------------------------------------
 
     monthly_results = []
 
@@ -220,7 +268,7 @@ def main():
 
         monthly_results.append(result)
 
-    print("\n")
+    print()
     print("Annual Drift Summary")
     print("====================")
 
@@ -230,11 +278,11 @@ def main():
 
             features = ", ".join(result["drifted_features"])
 
-            print(f"Month {result['month']:02d}: " f"DRIFT → {features}")
+            print(f"Month {result['month']:02d}: " f"DRIFT -> {features}")
 
         else:
 
-            print(f"Month {result['month']:02d}: " f"NO DRIFT")
+            print(f"Month {result['month']:02d}: " "NO DRIFT")
 
     drift_months = [
         result["month"] for result in monthly_results if result["drift_detected"]
@@ -254,6 +302,8 @@ def main():
 
         print("No retraining would be triggered.")
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
