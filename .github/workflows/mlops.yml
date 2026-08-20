@@ -2,8 +2,7 @@ name: MLOps - Monitoring and Retraining
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+
 
 jobs:
   monitor-and-retrain:
