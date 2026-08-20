@@ -2,8 +2,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-CURRENT_DIR = Path(__file__).resolve().parent
-TRAIN_SCRIPT = CURRENT_DIR / "train_model.py"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def retrain_model() -> None:
@@ -13,7 +12,8 @@ def retrain_model() -> None:
     print("---------------------------")
 
     result = subprocess.run(
-        [sys.executable, str(TRAIN_SCRIPT)],
+        [sys.executable, "-m", "src.train_model"],
+        cwd=PROJECT_ROOT,
         check=False,
     )
 
