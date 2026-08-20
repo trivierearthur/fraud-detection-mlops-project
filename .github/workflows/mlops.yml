@@ -2,13 +2,14 @@ name: MLOps - Monitoring and Retraining
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   monitor-and-retrain:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -23,32 +24,93 @@ jobs:
       - name: Generate monthly simulation data
         run: python src/simulate_months.py
 
-      - name: Monitor monthly data and retrain on drift
+      - name: Monitor 12 months and retrain on drift
         shell: bash
         run: |
-          for month in {1..12}
+          set -e
+
+          echo "======================================"
+          echo "MLOps monthly monitoring simulation"
+          echo "======================================"
+
+          for month in $(seq 1 12)
           do
+            MONTH=$(printf "%02d" "$month")
+
             echo ""
             echo "======================================"
-            echo "Processing month $month"
+            echo "Processing month $MONTH"
             echo "======================================"
 
-            python src/monitoring.py --month $month
+            python -c "
+from src.monitoring import load_reference_data, load_monthly_data, monitor_month
 
-            if [ $? -eq 1 ]; then
-              echo "Drift detected for month $month."
-              echo "Starting automatic model retraining..."
+reference = load_reference_data()
+current = load_monthly_data($month)
+
+result = monitor_month(
+    reference=reference,
+    current=current,
+    month=$month
+)
+
+if result['drift_detected']:
+    print('DRIFT_DETECTED')
+else:
+    print('NO_DRIFT')
+            " > monitoring_result.txt
+
+            cat monitoring_result.txt
+
+            if grep -q "DRIFT_DETECTED" monitoring_result.txt
+            then
+              echo ""
+              echo ">>> Drift detected for month $MONTH"
+              echo ">>> Updating training data"
+              echo ">>> Starting automatic retraining"
+
+              cp "data/monthly/month_${MONTH}.csv" data/raw/fraud_data.csv
 
               python src/retrain.py
 
-              echo "Retraining completed."
+              echo ">>> Retraining completed for month $MONTH"
             else
-              echo "No drift detected for month $month."
-              echo "Keeping current model."
+              echo ""
+              echo ">>> No drift detected for month $MONTH"
+              echo ">>> Keeping current model"
             fi
           done
 
+      - name: Validate latest model
+        run: |
+          python -c "
+from pathlib import Path
+import joblib
+
+models_dir = Path('models')
+current_file = models_dir / 'current_model.txt'
+
+if not current_file.exists():
+    raise SystemExit('current_model.txt was not created')
+
+model_name = current_file.read_text(encoding='utf-8').strip()
+model_path = models_dir / model_name
+
+if not model_path.exists():
+    raise SystemExit(f'Model not found: {model_path}')
+
+joblib.load(model_path)
+
+print(f'Current model: {model_name}')
+print('Latest model loaded successfully.')
+          "
+
       - name: Show generated model versions
         run: |
-          echo "Generated model versions:"
-          ls -lh models/
+          echo "======================================"
+          echo "Generated model versions"
+          echo "======================================"
+          ls -lh models/fraud_model_v*.joblib
+          echo ""
+          echo "Current model:"
+          cat models/current_model.txt
