@@ -11,3 +11,7 @@ python-dotenv==1.2.3
 
 # Testing
 pytest==7.4.2
+
+# UI
+streamlit==1.62.0
+requests==2.34.2
