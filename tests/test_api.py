@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -9,7 +10,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.api import app
-from src.auth import API_KEY
 
 
 @pytest.fixture
@@ -40,8 +40,11 @@ VALID_TRANSACTION = {
 
 
 def auth_headers():
-    """Return authentication headers using the configured API key."""
-    return {"Authorization": f"Bearer {API_KEY}"}
+    """Return authentication headers using the configured API key at runtime."""
+    api_key = os.getenv("API_KEY")
+    if not api_key:
+        raise ValueError("API_KEY not set. Configure via .env or GitHub Secrets.")
+    return {"Authorization": f"Bearer {api_key}"}
 
 
 def test_health(client):

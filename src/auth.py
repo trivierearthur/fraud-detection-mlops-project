@@ -25,10 +25,12 @@ def require_api_key(f):
 
         token = auth_header.split(" ", 1)[1]
 
-        if not API_KEY:
+        # Read API_KEY from environment at runtime (not module load time)
+        current_api_key = os.getenv("API_KEY")
+        if not current_api_key:
             return jsonify({"error": "API authentication is not configured"}), 500
 
-        if token != API_KEY:
+        if token != current_api_key:
             return jsonify({"error": "Invalid API key"}), 401
 
         return f(*args, **kwargs)
