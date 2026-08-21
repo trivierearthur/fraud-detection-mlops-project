@@ -160,3 +160,5 @@ pytest
 - **`mlops.yml`** — simulates 12 months of data, runs drift monitoring for
   each month, and automatically retrains the model whenever drift is
   detected, then validates that a new model version was produced.
+
+  ** to be deleted
