@@ -3,11 +3,10 @@ from pathlib import Path
 
 import pytest
 
-# Add the src directory to Python's import path
+# Add the project root to Python's import path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = PROJECT_ROOT / "src"
 
-sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.api import app
 from src.auth import API_KEY
