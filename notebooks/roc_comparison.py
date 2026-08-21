@@ -3,7 +3,7 @@ Generate a ROC curve comparison plot for the candidate models used in
 src/train_model.py (logistic regression, random forest, SVC).
 
 Run with: python notebooks/roc_comparison.py
-Output: notebooks/eda_plots/roc_comparison.png
+Output: training_output/roc_comparison.png
 """
 
 from pathlib import Path
@@ -21,7 +21,7 @@ from src.data_loader import load_raw_data
 from src.preprocess import prepare_training_dataframe
 from src.train_model import build_pipeline, get_models
 
-OUTPUT_DIR = PROJECT_ROOT / "notebooks" / "eda_plots"
+OUTPUT_DIR = PROJECT_ROOT / "training_output"
 OUTPUT_FILE = OUTPUT_DIR / "roc_comparison.png"
 
 
