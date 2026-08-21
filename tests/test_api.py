@@ -9,7 +9,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 
 sys.path.insert(0, str(SRC_DIR))
 
-from api import app
+from src.api import app
 from auth import API_KEY
 
 
