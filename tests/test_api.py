@@ -40,10 +40,10 @@ VALID_TRANSACTION = {
 
 
 def auth_headers():
-    """Return authentication headers using the configured API key."""
+    """Return authentication headers using the configured API key from environment or .env."""
     api_key = os.getenv("API_KEY")
     if not api_key:
-        raise ValueError("API_KEY environment variable not set")
+        raise ValueError("API_KEY not found. Set it via .env or GitHub Secrets.")
     return {"Authorization": f"Bearer {api_key}"}
 
 
