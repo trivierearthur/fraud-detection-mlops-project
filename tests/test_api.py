@@ -10,7 +10,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
 from src.api import app
-from auth import API_KEY
+from src.auth import API_KEY
 
 
 @pytest.fixture
