@@ -7,7 +7,8 @@ import pandas as pd
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
-MODEL_FILE = PROJECT_ROOT / "models" / "fraud_model.joblib"
+MODELS_DIR = PROJECT_ROOT / "models"
+CURRENT_MODEL_FILE = MODELS_DIR / "current_model.txt"
 
 try:
     from src.data_loader import load_raw_data
@@ -21,12 +22,29 @@ except ModuleNotFoundError:
 
 
 def load_model():
-    """Load the saved end-to-end fraud pipeline from disk."""
-    if not MODEL_FILE.exists():
+    """Load the currently active versioned fraud pipeline."""
+
+    if not CURRENT_MODEL_FILE.exists():
         raise FileNotFoundError(
-            f"Saved model not found at {MODEL_FILE}. Run train_model.py first."
+            f"Current model reference not found at {CURRENT_MODEL_FILE}. "
+            "Run train_model.py first."
         )
-    return joblib.load(MODEL_FILE)
+
+    model_filename = CURRENT_MODEL_FILE.read_text(encoding="utf-8").strip()
+
+    if not model_filename:
+        raise ValueError(f"{CURRENT_MODEL_FILE} is empty.")
+
+    model_path = MODELS_DIR / model_filename
+
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Current model '{model_filename}' was not found at " f"{model_path}."
+        )
+
+    print(f"Loading current model: {model_filename}")
+
+    return joblib.load(model_path)
 
 
 def load_prediction_input(
@@ -70,7 +88,7 @@ def predict_transactions(model, transactions: pd.DataFrame) -> pd.DataFrame:
 def build_argument_parser() -> ArgumentParser:
     """Define command-line options for prediction input and output."""
     parser = ArgumentParser(
-        description="Load the saved fraud pipeline and score new transactions."
+        description="Load the current fraud pipeline and score new transactions."
     )
     parser.add_argument(
         "--input-csv",
@@ -100,10 +118,18 @@ def main() -> None:
     """CLI entrypoint for fraud scoring."""
     args = build_argument_parser().parse_args()
 
-    # Load trained pipeline and score raw incoming transactions.
+    # Load currently active versioned pipeline.
     model = load_model()
-    transactions = load_prediction_input(args.input_csv, args.sample_row)
-    predictions = predict_transactions(model, transactions)
+
+    transactions = load_prediction_input(
+        args.input_csv,
+        args.sample_row,
+    )
+
+    predictions = predict_transactions(
+        model,
+        transactions,
+    )
 
     # Keep terminal output focused on key identifiers and model outputs.
     display_columns = [
@@ -111,6 +137,7 @@ def main() -> None:
         for column in ["trans_num", "category", "amt", "is_fraud"]
         if column in predictions.columns
     ]
+
     display_columns.extend(["fraud_probability", "fraud_prediction"])
 
     print("Prediction results")
@@ -120,8 +147,16 @@ def main() -> None:
     # Optional artifact for downstream analysis/reporting.
     if args.output_csv is not None:
         output_path = Path(args.output_csv)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        predictions.to_csv(output_path, index=False)
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        predictions.to_csv(
+            output_path,
+            index=False,
+        )
+
         print(f"\nSaved predictions to: {output_path}")
 
 
