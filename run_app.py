@@ -26,9 +26,9 @@ def main():
     print("Starting Fraud Detection application...")
     print()
 
-    # Start Flask API
+    # Start Flask API using module execution (-m) to properly resolve imports
     print("Starting Flask API...")
-    flask_process = subprocess.Popen([sys.executable, "src/api.py"])
+    flask_process = subprocess.Popen([sys.executable, "-m", "src.api"])
 
     # Wait for Flask to become available
     if not wait_for_server(FLASK_URL):

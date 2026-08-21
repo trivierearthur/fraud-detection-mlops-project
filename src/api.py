@@ -4,7 +4,11 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from flask import Flask, jsonify, request
-from src.auth import require_api_key
+
+try:
+    from .auth import require_api_key
+except ImportError:
+    from src.auth import require_api_key
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
