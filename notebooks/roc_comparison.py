@@ -1,16 +1,17 @@
 """
-Generate a ROC curve comparison plot for the candidate models used in
-src/train_model.py (logistic regression, random forest, SVC).
+Generate ROC and Precision-Recall curve comparison plots for the candidate
+models used in src/train_model.py (logistic regression, random forest, SVC).
+PR-AUC is included because it is the metric used to select the best model.
 
 Run with: python notebooks/roc_comparison.py
-Output: training_output/roc_comparison.png
+Output: training_output/roc_comparison.png, training_output/pr_comparison.png
 """
 
 from pathlib import Path
 import sys
 
 import matplotlib.pyplot as plt
-from sklearn.metrics import RocCurveDisplay
+from sklearn.metrics import PrecisionRecallDisplay, RocCurveDisplay
 from sklearn.model_selection import train_test_split
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -22,7 +23,8 @@ from src.preprocess import prepare_training_dataframe
 from src.train_model import build_pipeline, get_models
 
 OUTPUT_DIR = PROJECT_ROOT / "training_output"
-OUTPUT_FILE = OUTPUT_DIR / "roc_comparison.png"
+ROC_OUTPUT_FILE = OUTPUT_DIR / "roc_comparison.png"
+PR_OUTPUT_FILE = OUTPUT_DIR / "pr_comparison.png"
 
 
 def main() -> None:
@@ -33,7 +35,8 @@ def main() -> None:
         x, y, test_size=0.25, stratify=y, random_state=42
     )
 
-    fig, ax = plt.subplots(figsize=(7, 6))
+    roc_fig, roc_ax = plt.subplots(figsize=(7, 6))
+    pr_fig, pr_ax = plt.subplots(figsize=(7, 6))
 
     for model_name, estimator in get_models().items():
         pipeline = build_pipeline(x_train, estimator)
@@ -45,17 +48,32 @@ def main() -> None:
             y_test,
             probabilities,
             name=model_name,
-            ax=ax,
+            ax=roc_ax,
         )
 
-    ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Chance")
-    ax.set_title("ROC Curve Comparison Across Candidate Models")
-    ax.legend(loc="lower right")
+        PrecisionRecallDisplay.from_predictions(
+            y_test,
+            probabilities,
+            name=model_name,
+            ax=pr_ax,
+        )
+
+    roc_ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Chance")
+    roc_ax.set_title("ROC Curve Comparison Across Candidate Models")
+    roc_ax.legend(loc="lower right")
+
+    fraud_rate = y_test.mean()
+    pr_ax.axhline(fraud_rate, linestyle="--", color="gray", label="Chance")
+    pr_ax.set_title("Precision-Recall Curve Comparison Across Candidate Models")
+    pr_ax.legend(loc="upper right")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUTPUT_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved ROC comparison plot to {OUTPUT_FILE}")
+    roc_fig.savefig(ROC_OUTPUT_FILE, dpi=150, bbox_inches="tight")
+    pr_fig.savefig(PR_OUTPUT_FILE, dpi=150, bbox_inches="tight")
+    print(f"Saved ROC comparison plot to {ROC_OUTPUT_FILE}")
+    print(f"Saved PR comparison plot to {PR_OUTPUT_FILE}")
 
 
 if __name__ == "__main__":
     main()
+
