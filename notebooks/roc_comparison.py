@@ -69,10 +69,13 @@ def main() -> None:
     # A curve staying near precision=1.0 until a late drop indicates strong performance;
     # this "flat-then-drop" shape is expected for imbalanced fraud data, not an artifact.
     pr_fig.text(
-        0.5, -0.02,
+        0.5,
+        -0.02,
         "PR-AUC (average precision) is used for model selection because ROC-AUC "
         "can look inflated on imbalanced fraud data.",
-        ha="center", fontsize=8, color="dimgray",
+        ha="center",
+        fontsize=8,
+        color="dimgray",
     )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,4 +87,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
