@@ -66,6 +66,14 @@ def main() -> None:
     pr_ax.axhline(fraud_rate, linestyle="--", color="gray", label="Chance")
     pr_ax.set_title("Precision-Recall Curve Comparison Across Candidate Models")
     pr_ax.legend(loc="upper right")
+    # A curve staying near precision=1.0 until a late drop indicates strong performance;
+    # this "flat-then-drop" shape is expected for imbalanced fraud data, not an artifact.
+    pr_fig.text(
+        0.5, -0.02,
+        "PR-AUC (average precision) is used for model selection because ROC-AUC "
+        "can look inflated on imbalanced fraud data.",
+        ha="center", fontsize=8, color="dimgray",
+    )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     roc_fig.savefig(ROC_OUTPUT_FILE, dpi=150, bbox_inches="tight")
