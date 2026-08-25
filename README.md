@@ -60,6 +60,12 @@ models/
 
 notebooks/
   eda.py                  # Exploratory data analysis (manual, not in pipeline)
+  roc_comparison.py       # Generates ROC and PR-AUC comparison plots
+  eda_plots/              # EDA visualizations
+
+training_output/
+  roc_comparison.png      # ROC curves for all candidate models
+  pr_comparison.png       # Precision-Recall curves and PR-AUC comparison
 
 src/
   data_loader.py          # load_raw_data()
@@ -74,7 +80,11 @@ src/
   retrain.py                  # Re-runs train_model as a subprocess when drift hits
 
 tests/
-  test_api.py               # API tests
+  conftest.py             # Test configuration and API key fallback
+  test_api.py             # API endpoint and authentication tests (8)
+  test_preprocess.py      # Feature engineering and transformer tests (3)
+  test_monitoring.py      # No-drift and deliberate-drift tests (2)
+  test_train_model.py     # Training and probability-output tests (2)
 
 .github/workflows/
   ci.yml                     # Runs tests on push
@@ -139,6 +149,14 @@ python src/monitoring.py --month 4
 Omit `--month` to run all 12 months at once (annual simulation mode).
 Drift is injected into months 4, 6, 8, 10 and 12 to demonstrate detection.
 
+To create a drift summary chart:
+
+```powershell
+python src/plot_monitoring.py
+```
+
+The chart is saved to `data/monitoring_drift.png`.
+
 ### 4. Retrain on drift
 
 ```powershell
@@ -154,11 +172,48 @@ Re-runs the training pipeline and produces the next model version
 pytest
 ```
 
+The test suite contains 15 focused tests:
+
+- **API (8):** health endpoint, authentication, valid prediction requests,
+  missing JSON, missing fields, invalid data types, and invalid datetimes.
+- **Preprocessing (3):** expected engineered features, high-cardinality column
+  removal, and consistent transformer fit/transform behavior.
+- **Monitoring (2):** unchanged data does not trigger drift, while deliberately
+  shifted numeric and categorical data does trigger drift.
+- **Training (2):** the complete feature-engineering and model pipeline can fit
+  and predict, and `predict_proba` returns valid `(n, 2)` class probabilities.
+
+The API tests use `API_KEY` from the environment. Locally, `tests/conftest.py`
+provides a test fallback when it is not already configured; CI receives the key
+from the repository secret.
+
+### 6. Compare candidate models
+
+```powershell
+python notebooks/roc_comparison.py
+```
+
+This trains logistic regression, random forest, and SVC on the same held-out
+split and creates two artifacts in `training_output/`:
+
+- `roc_comparison.png` — ROC curves with ROC-AUC values.
+- `pr_comparison.png` — Precision-Recall curves with average precision,
+  equivalent to the PR-AUC used by `train_model.py` for model selection.
+
+PR-AUC is the selection metric because fraud is the minority class. ROC-AUC is
+kept as a complementary, easier-to-read view of the same candidates.
+
 ## CI/CD
 
-- **`ci.yml`** — installs dependencies and runs `pytest` on every push.
-- **`mlops.yml`** — simulates 12 months of data, runs drift monitoring for
-  each month, and automatically retrains the model whenever drift is
-  detected, then validates that a new model version was produced.
+- **`ci.yml`** — installs dependencies and runs all 15 tests on pushes and pull
+  requests targeting `main`.
+- **`mlops.yml`** — can be started manually with `workflow_dispatch`; it also
+  runs on pushes targeting the branch configured in that workflow. It simulates
+  12 months, monitors each month, retrains whenever drift is detected, and
+  validates that the current versioned model can be loaded.
+
+Generated files such as model versions, monitoring charts, and ROC/PR plots are
+local or workflow artifacts. The active model is always identified by
+`models/current_model.txt`.
 
 
