@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 from typing import Any
 
 import joblib
@@ -22,14 +23,26 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import SVC
 
-from src.preprocess import (
-    TransactionFeatureTransformer,
-    engineer_transaction_features,
-    prepare_training_dataframe,
-)
-from src.data_loader import load_raw_data
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parent
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+try:
+    from src.preprocess import (
+        TransactionFeatureTransformer,
+        engineer_transaction_features,
+        prepare_training_dataframe,
+    )
+    from src.data_loader import load_raw_data
+except ModuleNotFoundError:
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.append(str(PROJECT_ROOT))
+    from src.preprocess import (
+        TransactionFeatureTransformer,
+        engineer_transaction_features,
+        prepare_training_dataframe,
+    )
+    from src.data_loader import load_raw_data
+
 MODELS_DIR = PROJECT_ROOT / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 

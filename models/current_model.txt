@@ -1,1 +1,1 @@
-fraud_model_v6.joblib
+fraud_model_v8.joblib
