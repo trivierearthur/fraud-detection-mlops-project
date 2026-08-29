@@ -65,7 +65,7 @@ def main() -> None:
     fraud_rate = y_test.mean()
     pr_ax.axhline(fraud_rate, linestyle="--", color="gray", label="Chance")
     pr_ax.set_title("Precision-Recall Curve Comparison Across Candidate Models")
-    pr_ax.legend(loc="upper right")
+    pr_ax.legend(loc="lower left")
     # A curve staying near precision=1.0 until a late drop indicates strong performance;
     # this "flat-then-drop" shape is expected for imbalanced fraud data, not an artifact.
     pr_fig.text(
